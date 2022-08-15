@@ -212,6 +212,7 @@ def main():
             delocalize_by=Delocalize.COPY,
         )
         s1.switch_gcloud_auth_to_user_account()
+        s1.command("set -euxo pipefail")
 
         reference_fasta_input, reference_fasta_fai_input = s1.inputs(
             REFERENCE_FASTA_PATH[row_genome_version],
@@ -224,14 +225,16 @@ def main():
 
         cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
         crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
+
         s1.command("cd /io/")
-        s1.command("set -ex")
+        s1.command(f"ln -s {cram_or_bam_input} {cram_or_bam_input.filename}")
+        s1.command(f"ln -s {crai_or_bai_input} {crai_or_bai_input.filename}")
         s1.command(f"ls -lh {cram_or_bam_input}")
         local_bam_path = f"{row_sample_id}.bam"
         smn1_interval = f"{smn_chrom}:{smn1_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
         smn2_interval = f"{smn_chrom}:{smn2_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
-        s1.command(f"time samtools view -T {reference_fasta_input} -b {cram_or_bam_input} {smn1_interval} {smn2_interval} "
-                   f"| samtools sort > {local_bam_path}")
+        s1.command(f"time samtools view -T {reference_fasta_input} -b {cram_or_bam_input.filename} "
+                   f"{smn1_interval} {smn2_interval} | samtools sort > {local_bam_path}")
         s1.command(f"time samtools index {local_bam_path}")
 
         output_tsv_name = f"{OUTPUT_FILENAME_PREFIX}.{row_sample_id}.{row_sample_type}.tsv"
@@ -258,7 +261,7 @@ def main():
         delocalize_by=Delocalize.COPY,
         arg_suffix="step2",
     )
-    s2.command("set -ex")
+    s2.command("set -euxo pipefail")
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
     for i, step in enumerate(steps):
