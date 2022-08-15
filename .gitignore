@@ -1,0 +1,13 @@
+*.pyc
+*.tsv
+*.txt
+*.bak
+
+# build
+build/
+dist/
+*.egg-info
+
+# IDE
+*.iml
+.idea
