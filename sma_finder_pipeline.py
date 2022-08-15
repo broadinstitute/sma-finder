@@ -8,7 +8,7 @@ import sys
 from step_pipeline import pipeline, Backend, Localize, Delocalize
 from sma_finder import SMN_COORDINATES
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:e36dbec606dc63989a372938d5d0d2ee7147b4a160756864acbdb2703eaaf4f7"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:d68663b283c9d274de0e465059efbd514a8334806e25711cbf9086dfdbceacec"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -207,7 +207,6 @@ def main():
             image=DOCKER_IMAGE,
             cpu=0.25,
             memory="standard",
-            #storage="25Gi",
             output_dir=os.path.join(args.output_dir, row_genome_version, row_sample_type),
             delocalize_by=Delocalize.COPY,
         )
@@ -227,12 +226,13 @@ def main():
         crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
 
         s1.command("cd /io/")
+        #s1.command("cd ~")
         s1.command(f"ln -s {cram_or_bam_input} {cram_or_bam_input.filename}")
         s1.command(f"ln -s {crai_or_bai_input} {crai_or_bai_input.filename}")
         s1.command(f"ls -lh {cram_or_bam_input}")
-        local_bam_path = f"{row_sample_id}.bam"
         smn1_interval = f"{smn_chrom}:{smn1_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
         smn2_interval = f"{smn_chrom}:{smn2_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
+        local_bam_path = f"{row_sample_id}.sorted.bam"
         s1.command(f"time samtools view -T {reference_fasta_input} -b {cram_or_bam_input.filename} "
                    f"{smn1_interval} {smn2_interval} | samtools sort > {local_bam_path}")
         s1.command(f"time samtools index {local_bam_path}")
