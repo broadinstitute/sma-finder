@@ -5,10 +5,10 @@ import os
 import pandas as pd
 import sys
 
+from sma_finder import SMN_CHROMOSOME, SMN_DIFFERING_POSITION_1BASED, SMN_OTHER_EXON_POSITIONS_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize
-from sma_finder import SMN_COORDINATES
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:d68663b283c9d274de0e465059efbd514a8334806e25711cbf9086dfdbceacec"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:f84ac236308c8ee912d2b361e1da5c2e457dbcecdb871dcf1bf73f1ccea4b721"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -71,7 +71,7 @@ def parse_args(batch_pipeline):
               help="Optionally specify the name of input table column that contains the CRAM or BAM path")
     group.add("--crai-or-bai-path-column",
               help="Optionally specify the name of input table column that contains the CRAI or BAI path")
-    args = batch_pipeline.parse_args()
+    args = batch_pipeline.parse_known_args()
 
     return args
 
@@ -218,9 +218,16 @@ def main():
             REFERENCE_FASTA_FAI_PATH[row_genome_version],
             localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
 
-        smn_chrom = SMN_COORDINATES["SMN_CHROMOSOME"][row_genome_version]
-        smn1_c840_pos = SMN_COORDINATES["SMN1_C840_POSITION_1BASED"][row_genome_version]
-        smn2_c840_pos = SMN_COORDINATES["SMN2_C840_POSITION_1BASED"][row_genome_version]
+        smn_chrom = SMN_CHROMOSOME[row_genome_version]
+        smn_intervals = []
+        smn_positions_list = [
+            *SMN_DIFFERING_POSITION_1BASED[row_genome_version].values(),
+            *SMN_OTHER_EXON_POSITIONS_1BASED[row_genome_version].values(),
+        ]
+
+        for smn_positions in smn_positions_list:
+            for smn_position in smn_positions.values():
+                smn_intervals.append(f"{smn_chrom}:{smn_position - READ_WINDOW_SIZE}-{smn_position + READ_WINDOW_SIZE}")
 
         cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
         crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
@@ -230,12 +237,10 @@ def main():
         s1.command(f"ln -s {cram_or_bam_input} {cram_or_bam_input.filename}")
         s1.command(f"ln -s {crai_or_bai_input} {crai_or_bai_input.filename}")
         s1.command(f"ls -lh {cram_or_bam_input}")
-        smn1_interval = f"{smn_chrom}:{smn1_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
-        smn2_interval = f"{smn_chrom}:{smn2_c840_pos - READ_WINDOW_SIZE}-{smn1_c840_pos + READ_WINDOW_SIZE}"
         local_bam_path = f"{row_sample_id}.sorted.bam"
-        s1.command(f"time samtools view -T {reference_fasta_input} -b {cram_or_bam_input.filename} "
-                   f"{smn1_interval} {smn2_interval} | samtools sort > {local_bam_path}")
-        s1.command(f"time samtools index {local_bam_path}")
+        s1.command(f"samtools view -T {reference_fasta_input} -b {cram_or_bam_input.filename} " + " ".join(smn_intervals) +
+                   f" | samtools sort > {local_bam_path}")
+        s1.command(f"samtools index {local_bam_path}")
 
         output_tsv_name = f"{OUTPUT_FILENAME_PREFIX}.{row_sample_id}.{row_sample_type}.tsv"
         s1.command(
@@ -278,7 +283,6 @@ def main():
     # download results and merge with the sample metadata table
     os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
-    #df = df[set(df.columns) - {args.cram_or_bam_path_column, args.crai_or_bai_path_column}]
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata)} rows to {combined_output_tsv_filename}")
