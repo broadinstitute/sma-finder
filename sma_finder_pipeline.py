@@ -295,7 +295,7 @@ def main():
     os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
     result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.where(
-        ~result_df.sample_id.isin(set(df[args.sample_id_column])), result_df.filename)
+        result_df.sample_id.isin(set(df[args.sample_id_column])), result_df.filename)
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata)} rows to {combined_output_tsv_filename}")
