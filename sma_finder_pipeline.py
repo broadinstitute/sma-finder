@@ -201,6 +201,8 @@ def main():
         row_sample_type = row[args.sample_type_column]
         row_cram_or_bam_path = row[args.cram_or_bam_path_column]
         row_crai_or_bai_path = row[args.crai_or_bai_path_column]
+
+        # step1: run sma_finder.py
         s1 = bp.new_step(
             f"SMA pipeline: {row_sample_id}",
             arg_suffix="step1",
@@ -218,6 +220,7 @@ def main():
             REFERENCE_FASTA_FAI_PATH[row_genome_version],
             localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
 
+        # compute SMN genomic intervals of interest
         smn_chrom = SMN_CHROMOSOME[row_genome_version]
         smn_intervals = []
         smn_positions_list = [
@@ -229,19 +232,26 @@ def main():
             for smn_position in smn_positions.values():
                 smn_intervals.append(f"{smn_chrom}:{smn_position - READ_WINDOW_SIZE}-{smn_position + READ_WINDOW_SIZE}")
 
+        smn_intervals = " ".join(smn_intervals)
+
+        # process input files
         cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
         crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
 
-        s1.command("cd /io/")
-        #s1.command("cd ~")
-        s1.command(f"ln -s {cram_or_bam_input} {cram_or_bam_input.filename}")
-        s1.command(f"ln -s {crai_or_bai_input} {crai_or_bai_input.filename}")
         s1.command(f"ls -lh {cram_or_bam_input}")
-        local_bam_path = f"{row_sample_id}.sorted.bam"
-        s1.command(f"samtools view -T {reference_fasta_input} -b {cram_or_bam_input.filename} " + " ".join(smn_intervals) +
+        s1.command("cd /io/")
+
+        # create symlinks in the same directory to work around cases when they are in different directories in the cloud
+        s1.command(f"ln -s {cram_or_bam_input} /{cram_or_bam_input.filename}")
+        s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
+
+        # extract the regions of interest into a local bam file to avoid random access network requests downstream
+        local_bam_path = f"{row_sample_id}.bam"
+        s1.command(f"samtools view -T {reference_fasta_input} -b /{cram_or_bam_input.filename} {smn_intervals} "
                    f" | samtools sort > {local_bam_path}")
         s1.command(f"samtools index {local_bam_path}")
 
+        # run smn_finder.py
         output_tsv_name = f"{OUTPUT_FILENAME_PREFIX}.{row_sample_id}.{row_sample_type}.tsv"
         s1.command(
             f"time python3 -u /sma_finder.py "
@@ -252,16 +262,17 @@ def main():
             f"{local_bam_path}"
         )
         s1.command("ls")
+
+        # delocalize the output tsv
         s1.output(output_tsv_name, delocalize_by=Delocalize.COPY)
         steps.append(s1)
 
-    # combine tables into a single table
+    # step2: combine tables from step1 into a single table
     s2 = bp.new_step(
         f"Combine {len(steps)} tables",
         image=DOCKER_IMAGE,
         cpu=1,
         memory="standard",
-        #storage="70Gi",
         output_dir=args.output_dir,
         delocalize_by=Delocalize.COPY,
         arg_suffix="step2",
@@ -280,10 +291,12 @@ def main():
 
     bp.run()
 
-    # download results and merge with the sample metadata table
+    # download the output table from step2 and merge it with the input table given to this pipeline.
     os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
-    df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id", right_on=args.sample_id_column)
+    result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.where(
+        ~result_df.sample_id.isin(set(df[args.sample_id_column])), result_df.filename)
+    df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata)} rows to {combined_output_tsv_filename}")
 
