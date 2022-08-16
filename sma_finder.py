@@ -98,7 +98,15 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
 
     pos_0based = pos_1based - 1
     nucleotide_counts = {"A": 0, "C": 0, "G": 0, "T": 0}
-    for pileup_column in alignment_file.pileup(region=f"{chrom}:{pos_0based}-{pos_1based}", truncate=True, multiple_iterators=False):
+    for pileup_column in alignment_file.pileup(
+            region=f"{chrom}:{pos_0based}-{pos_1based}",
+            stepper="samtools",
+            ignore_overlaps=True,
+            ignore_orphans=False,
+            min_mapping_quality=0,
+            min_base_quality=13,
+            truncate=True,
+            multiple_iterators=False):
         if pileup_column.pos < pos_0based:
             continue
 
