@@ -24,7 +24,7 @@ REFERENCE_FASTA_FAI_PATH = {
 VALID_GENOME_VERSIONS = set(REFERENCE_FASTA_PATH.keys())
 VALID_SAMPLE_TYPES = {"WES", "WGS", "RNA"}
 
-READ_WINDOW_SIZE = 1000  # base-pairs
+SMN_REGION_PADDING = 1000  # base-pairs
 
 OUTPUT_FILENAME_PREFIX = "sma_finder"
 
@@ -220,20 +220,6 @@ def main():
             REFERENCE_FASTA_FAI_PATH[row_genome_version],
             localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
 
-        # compute SMN genomic intervals of interest
-        smn_chrom = SMN_CHROMOSOME[row_genome_version]
-        smn_intervals = []
-        smn_positions_list = [
-            *SMN_DIFFERING_POSITION_1BASED[row_genome_version].values(),
-            *SMN_OTHER_EXON_POSITIONS_1BASED[row_genome_version].values(),
-        ]
-
-        for smn_positions in smn_positions_list:
-            for smn_position in smn_positions.values():
-                smn_intervals.append(f"{smn_chrom}:{smn_position - READ_WINDOW_SIZE}-{smn_position + READ_WINDOW_SIZE}")
-
-        smn_intervals = " ".join(smn_intervals)
-
         # process input files
         cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
         crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
@@ -246,8 +232,17 @@ def main():
         s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
 
         # extract the regions of interest into a local bam file to avoid random access network requests downstream
+        smn_positions_list = [smn_position for smn_positions in [
+            *SMN_DIFFERING_POSITION_1BASED[row_genome_version].values(),
+            *SMN_OTHER_EXON_POSITIONS_1BASED[row_genome_version].values(),
+        ] for smn_position in smn_positions.values()]
+        smn_chrom = SMN_CHROMOSOME[row_genome_version]
+        smn_interval_start = min(smn_positions_list) - SMN_REGION_PADDING
+        smn_interval_end = max(smn_positions_list) + SMN_REGION_PADDING
+        smn_region = f"{smn_chrom}:{smn_interval_start}-{smn_interval_end}"
+
         local_bam_path = f"{row_sample_id}.bam"
-        s1.command(f"samtools view -T {reference_fasta_input} -b /{cram_or_bam_input.filename} {smn_intervals} "
+        s1.command(f"samtools view -T {reference_fasta_input} -b /{cram_or_bam_input.filename} {smn_region} "
                    f" | samtools sort > {local_bam_path}")
         s1.command(f"samtools index {local_bam_path}")
 
