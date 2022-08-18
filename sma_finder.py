@@ -277,8 +277,7 @@ def main():
     df = pd.DataFrame(output_rows)
     reordered_output_columns = ["filename", "file_type", "sample_id", "sma_status", "sma_status_details"]
     reordered_output_columns += [c for c in df.columns if c not in reordered_output_columns]
-    df[reordered_output_columns]
-    df.to_csv(args.output_tsv, sep='\t', header=True, index=False)
+    df[reordered_output_columns].to_csv(args.output_tsv, sep='\t', header=True, index=False)
     print(f"Wrote {len(output_rows)} rows to {args.output_tsv}")
 
 
