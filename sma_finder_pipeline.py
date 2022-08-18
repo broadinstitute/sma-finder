@@ -8,7 +8,7 @@ import sys
 from sma_finder import SMN_CHROMOSOME, SMN_DIFFERING_POSITION_1BASED, SMN_OTHER_EXON_POSITIONS_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:4ffc0b402edb5d597a1bfba0427df3bb2fe98d85e0f47cc8bc3a347802a472e5"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:ebd248997d76ceaa93c1f6f49e3d8bc0bf337cddb4f7910983955628bfae11a5"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",

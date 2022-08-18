@@ -209,7 +209,8 @@ def count_reads_at_other_exons(alignment_file, genome_version, output_row):
 
 
 def call_sma_status(genome_version, output_row):
-    """Determines SMA status.
+    """Determines SMA status and then sets the 'sma_status', 'sma_status_details', and 'average_exon_coverage' fields in
+    output_row.
 
     Args:
         genome_version (str): sample genome version (eg. "38")
@@ -238,16 +239,14 @@ def call_sma_status(genome_version, output_row):
         ):
             sma_status = "may have SMA"
             sma_status_details = (
-                    "has 0 copies of SMN exon 7 but has coverage of other exons of SMN, suggesting a deletion of "
-                    "exon 7 in all copies of SMN1 and SMN2"
+                    f"SMN exons 1-6 have coverage >= {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS}x while exon 7 has "
+                    f"approximately zero coverage, suggesting either technical problems with sequencing exon 7, or "
+                    f"alternatively the deletion of exon 7 in all copies of SMN1 and SMN2"
             )
 
         else:
-            sma_status = "not enough coverage of SMN"
-            sma_status_details = (
-                f"average coverage of all SMN exons is < {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS} reads, suggesting "
-                "either technical issues, or the complete deletion of both SMN1 and SMN2"
-            )
+            sma_status = "not enough coverage"
+            sma_status_details = f"average coverage of all SMN exons is < {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS}x"
 
     output_row["sma_status"] = sma_status
     output_row["sma_status_details"] = sma_status_details
