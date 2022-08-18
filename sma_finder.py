@@ -5,13 +5,11 @@ a sample has spinal muscular atrophy (SMA).
 """
 
 import argparse
-import math
 import os
 import pysam
 import pandas as pd
 import pprint
 import re
-from scipy.stats import binom
 
 SMN_CHROMOSOME = {
     "37": "5",
@@ -66,26 +64,12 @@ SMN_OTHER_EXON_POSITIONS_1BASED = {
     },
 }
 
-"""The IlluminaCopyNumberCaller paper [Chen 2020] Fig 3C. considers the 2,504 unaffected individuals from the 
-1kGP projects and shows that the most extreme observed ratio of SMN1 vs. SMN2 copy number is 1 to 4. Specifically, 
-~10 out of 2,504 individuals (0.4%) have 4 copies of SMN2 while having only 1 copy of SMN1.  
-For these individuals, we'd expect 20% of the reads that overlap the c.840 position in SMN1 and SMN2 to have the 
-'C' base found in the SMN1 paralog:
-
-      c840_reads_with_smn1_base_C / c840_total_reads ~= 0.2
+"""This threshold is based on the empirical distribution in positive and negative control samples from large 
+WES and WGS cohorts.
 """
-
-MAX_TOTAL_SMN_COPIES = 5
-
-
-"""To differentiate individuals who have more than 0 copies of SMN1 (and so are unaffected or carriers) from 
-individuals who have 0 copies of SMN1 (and so should be called as affected with SMA), we need at least 14 reads coverage 
-to be certain (p < 0.05). 
-"""
-MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS = 14
-
-"""Allow for a base sequencing error rate of Q30 on the Phred scale"""
-BASE_ERROR_RATE = 0.001
+MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS = 15
+MAX_FRACTION_OF_READS_WITH_ERROR = 0.02
+MAX_READS_WITH_ERROR = 2
 
 
 def parse_args():
@@ -224,37 +208,6 @@ def count_reads_at_other_exons(alignment_file, genome_version, output_row):
         })
 
 
-def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supporting_smn1, total_reads, base_error_rate):
-    """Compute the likelihood of 0 copies of SMN1 vs the likelihood of 1 or more copies given the read data.
-
-    Args:
-        n_reads_supporting_smn1 (int): number of reads that support the presence of a functional SMN1 paralog
-        total_reads (int): coverage estimate to use for comparison with n_reads_supporting_smn1
-        base_error_rate (float): probability of a sequencing error at any given base
-
-    Returns:
-        bool: returns True if n_reads_supporting_smn1 is too large (relative to total_reads) to be treated as just a
-            sequencing error. Otherwise, returns False.
-    """
-
-    n_smn1_copies_with_max_likelihood = None
-    max_likelihood = 0
-    for n_smn1_copies in range(0, MAX_TOTAL_SMN_COPIES + 1):
-        if n_smn1_copies == 0:
-            p_smn1_read = base_error_rate
-            n_total = n_reads_supporting_smn1
-        else:
-            p_smn1_read = n_smn1_copies/MAX_TOTAL_SMN_COPIES
-            n_total = total_reads
-
-        current_likelihood = binom.pmf(n_reads_supporting_smn1, n_total, p_smn1_read)
-        if current_likelihood > max_likelihood:
-            max_likelihood = current_likelihood
-            n_smn1_copies_with_max_likelihood = n_smn1_copies
-
-    return n_smn1_copies_with_max_likelihood
-
-
 def call_sma_status(genome_version, output_row):
     """Determines SMA status.
 
@@ -268,16 +221,21 @@ def call_sma_status(genome_version, output_row):
     average_coverage_of_other_exons /= len(exon_positions)
 
     if output_row['c840_total_reads'] >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
-        if is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
-                output_row['c840_reads_with_smn1_base_C'], output_row['c840_total_reads'], BASE_ERROR_RATE):
+        if (
+            output_row['c840_reads_with_smn1_base_C'] <= MAX_READS_WITH_ERROR and
+            output_row['c840_reads_with_smn1_base_C'] <= MAX_FRACTION_OF_READS_WITH_ERROR * output_row['c840_total_reads']
+        ):
             sma_status = "has SMA"
             sma_status_details = "has 0 copies of SMN1"
         else:
             sma_status = "doesn't have SMA"
             sma_status_details = "has 1 or more copies of SMN1"
     else:
-        if not is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
-                output_row['c840_reads_with_smn1_base_C'], average_coverage_of_other_exons, BASE_ERROR_RATE):
+        if (
+            average_coverage_of_other_exons >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS and
+            output_row['c840_reads_with_smn1_base_C'] <= MAX_READS_WITH_ERROR and
+            output_row['c840_reads_with_smn1_base_C'] <= MAX_FRACTION_OF_READS_WITH_ERROR * average_coverage_of_other_exons
+        ):
             sma_status = "may have SMA"
             sma_status_details = (
                     "has 0 copies of SMN exon 7 but has coverage of other exons of SMN, suggesting a deletion of "
