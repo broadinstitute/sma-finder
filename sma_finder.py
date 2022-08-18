@@ -1,6 +1,8 @@
 #!/usr/env python3
 
-"""This script reports read counts in SMN1 & SMN2 that can be used to check if the given WES or WGS sample has SMA."""
+"""This script computes read counts at key positions in the SMN1 & SMN2 genes and uses these to determine whether
+a sample has spinal muscular atrophy (SMA).
+"""
 
 import argparse
 import os
@@ -61,6 +63,19 @@ SMN_OTHER_EXON_POSITIONS_1BASED = {
         "exon6":  {"SMN1": 71402910, "SMN2": 70816641},
     },
 }
+
+"""Allow for a Q17 base error rate"""
+MIN_BASE_ERROR_RATE = 0.02
+
+"""The IlluminaCopyNumberCaller paper [Chen 2020] Fig 3C. shows that ~10 individuals without SMA (0.4% of 1kGP) have as 
+many as 4 copies of SMN2 while having only 1 copy of SMN1. This means we'd expect 20% of their reads to come from SMN1:
+      c840_reads_with_smn1_base_C / c840_total_reads ~= 0.2
+
+We want to call these individuals as not having SMA. To differentiate individuals that have more than 0 copies of SMN1 
+from individuals that have 0 copies (and so should be called as having SMA), we need at least 14 reads coverage so we
+can be certain (p < 0.05) (since (1 - 0.2) ^ 14 == 0.04).
+"""
+MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS = 14
 
 
 def parse_args():
@@ -128,50 +143,129 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
     return nucleotide_counts
 
 
+def add_filename_and_file_type(cram_or_bam_path, output_row):
+    """Add 'filename' and 'file_type' fields to the output_row.
+
+    Args:
+        cram_or_bam_path (str): Input CRAM or BAM path.
+        output_row (dict): fields that will be written to the output .tsv
+    """
+    filename_pattern_match = re.match("(.*)[.](cram|bam)$", os.path.basename(cram_or_bam_path))
+    if not filename_pattern_match:
+        raise ValueError(f"File path doesn't end with have '.cram' or '.bam': {cram_or_bam_path}")
+
+    output_row.update({
+        "filename": filename_pattern_match.group(1),
+        "file_type": filename_pattern_match.group(2),
+    })
+
+
+def determine_sample_id(alignment_file, output_row):
+    """Try to get the sample_id from the BAM file header by looking for a read group (@RG) with a sample (SM) field.
+
+    Args:
+        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
+        output_row (dict): fields that will be written to the output .tsv
+    """
+    output_row["sample_id"] = ""
+    for read_group in alignment_file.header.get("RG", []):
+        if "SM" in read_group:
+            output_row["sample_id"] = read_group["SM"]
+            break
+
+
+def count_reads_at_differing_bases(alignment_file, genome_version, output_row):
+    """Count reads at SMN_DIFFERING_POSITION_1BASED and 'c840_reads_with_sm1_base_C', 'c840_total_reads', ... fields
+    to the output_row.
+
+    Args:
+        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
+        genome_version (str): sample genome version (eg. "38")
+        output_row (dict): fields that will be written to the output .tsv
+    """
+    chrom = SMN_CHROMOSOME[genome_version]
+    smn_differing_positions = SMN_DIFFERING_POSITION_1BASED[genome_version]
+    for key, smn1_base in [("c840", "C"), ("c1124", "G")]:
+        differing_position = smn_differing_positions[key]
+        smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN1"])
+        smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN2"])
+        output_row.update({
+            f"{key}_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] + smn2_nucleotide_counts[smn1_base],
+            f"{key}_total_reads": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
+        })
+
+
+def count_reads_at_other_exons(alignment_file, genome_version, output_row):
+    """Compute coverage at SMN_OTHER_EXON_POSITIONS_1BASED and add 'reads_at_exon1', 'reads_at_exon2a', ... fields
+    to the output_row.
+
+    Args:
+        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
+        genome_version (str): sample genome version (eg. "38")
+        output_row (dict): fields that will be written to the output .tsv
+    """
+
+    chrom = SMN_CHROMOSOME[genome_version]
+    for exon_name, exon_positions in SMN_OTHER_EXON_POSITIONS_1BASED[genome_version].items():
+        smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN1"])
+        smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN2"])
+        output_row.update({
+            f"reads_at_{exon_name}": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
+        })
+
+
+def call_sma_status(genome_version, output_row):
+    """Determines SMA status.
+
+    Args:
+        genome_version (str): sample genome version (eg. "38")
+        output_row (dict): fields that will be written to the output .tsv
+
+    Return:
+        (str, str): a short summary of whether this sample has SMA, and a longer explanation of the result.
+    """
+
+    if output_row['c840_total_reads'] >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
+        if output_row['c840_reads_with_smn1_base_C'] <= MIN_BASE_ERROR_RATE * output_row['c840_total_reads']:
+            return "has SMA", "has 0 copies of SMN1"
+        else:
+            return "doesn't have SMA", "has 1 or more copies of SMN1"
+    else:
+        exon_positions = SMN_OTHER_EXON_POSITIONS_1BASED[genome_version]
+        average_coverage_of_other_exons = sum(output_row[f"reads_at_{exon_name}"] for exon_name in exon_positions)
+        average_coverage_of_other_exons /= len(exon_positions)
+
+        if average_coverage_of_other_exons >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS and \
+                output_row['c840_reads_with_smn1_base_C'] <= MIN_BASE_ERROR_RATE * average_coverage_of_other_exons:
+            return (
+                "may have SMA",
+                "has 0 copies of SMN exon 7 but has coverage of other exons of SMN, suggesting a deletion of "
+                "exon 7 in all copies of SMN1 and SMN2"
+            )
+        else:
+            return (
+                "not enough coverage of SMN",
+                f"average coverage of all SMN exons is < {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS} reads, "
+                "suggesting either technical issues, or the complete deletion of both SMN1 and SMN2"
+            )
+
+
 def main():
     args = parse_args()
 
+    # process the input BAM or CRAM files
     output_rows = []
     for cram_or_bam_path in args.cram_or_bam_path:
-        filename_pattern_match = re.match("(.*)[.](cram|bam)$", os.path.basename(cram_or_bam_path))
-        if not filename_pattern_match:
-            raise ValueError(f"File path doesn't end with have '.cram' or '.bam': {cram_or_bam_path}")
-
-        output_row = {
-            "filename": filename_pattern_match.group(1),
-            "file_type": filename_pattern_match.group(2),
-        }
+        output_row = {}
+        add_filename_and_file_type(cram_or_bam_path, output_row)
 
         alignment_file = pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta)
+        determine_sample_id(alignment_file, output_row)
+        count_reads_at_differing_bases(alignment_file, args.genome_version, output_row)
+        count_reads_at_other_exons(alignment_file, args.genome_version, output_row)
 
-        # determine the sample_id
-        output_row["sample_id"] = ""
-        for read_group in alignment_file.header.get("RG", []):
-            if "SM" in read_group:
-                output_row["sample_id"] = read_group["SM"]
-                break
+        output_row["sma_status"], output_row["sma_status_details"] = call_sma_status(args.genome_version, output_row)
 
-        # count reads at differing bases
-        chrom = SMN_CHROMOSOME[args.genome_version]
-        smn_differing_positions = SMN_DIFFERING_POSITION_1BASED[args.genome_version]
-        for key, smn1_base in [("c840", "C"), ("c1124", "G")]:
-            differing_position = smn_differing_positions[key]
-            smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN1"])
-            smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN2"])
-            output_row.update({
-                f"{key}_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] + smn2_nucleotide_counts[smn1_base],
-                f"{key}_total_reads": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
-            })
-
-        # count reads at other exons
-        for exon_name, exon_positions in SMN_OTHER_EXON_POSITIONS_1BASED[args.genome_version].items():
-            smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN1"])
-            smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN2"])
-            output_row.update({
-                f"reads_at_{exon_name}": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
-            })
-
-        # record output row
         output_rows.append(output_row)
         if args.verbose:
             print("Output row:")

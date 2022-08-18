@@ -3,6 +3,11 @@
 *.txt
 *.bak
 
+*.bam
+*.bai
+*.cram
+*.crai
+
 # build
 build/
 dist/

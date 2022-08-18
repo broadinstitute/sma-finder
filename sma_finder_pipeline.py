@@ -8,7 +8,7 @@ import sys
 from sma_finder import SMN_CHROMOSOME, SMN_DIFFERING_POSITION_1BASED, SMN_OTHER_EXON_POSITIONS_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:1a860fa0703fd4d5fba007a0144994fb17d68f210a262ac4407275fe52bda4c4"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:6261c28f78c9db4ddb848f2536ae67f8e0a732899d9a2c25ca67092e0391c843"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -281,6 +281,9 @@ def main():
         if i == 0:
             s2.command(f"head -n 1 {tsv_input} > {combined_output_tsv_filename}")
         s2.command(f"tail -n +2 {tsv_input} >> {combined_output_tsv_filename}")
+
+    s2.command(f"gzip {combined_output_tsv_filename}")
+    combined_output_tsv_filename = f"{combined_output_tsv_filename}.gz"
 
     s2.output(combined_output_tsv_filename, delocalize_by=Delocalize.COPY)
 
