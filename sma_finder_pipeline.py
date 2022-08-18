@@ -8,7 +8,7 @@ import sys
 from sma_finder import SMN_CHROMOSOME, SMN_DIFFERING_POSITION_1BASED, SMN_OTHER_EXON_POSITIONS_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:6261c28f78c9db4ddb848f2536ae67f8e0a732899d9a2c25ca67092e0391c843"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:bb7a426cccce3bd55202e2c876fa7f84b7cbdda56bbd290c9328badc1f30af0e"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -294,6 +294,8 @@ def main():
     result_df = pd.read_table(combined_output_tsv_filename)
     result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.where(
         result_df.sample_id.isin(set(df[args.sample_id_column])), result_df.filename)
+
+    df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata)} rows to {combined_output_tsv_filename}")
