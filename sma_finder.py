@@ -1,7 +1,7 @@
 #!/usr/env python3
 
-"""This script computes read counts at key positions in the SMN1 & SMN2 genes and uses these to determine whether
-a sample has spinal muscular atrophy (SMA).
+"""SMA Finder takes a CRAM or BAM file from a WES or WGS sample and determines whether the sample has spinal 
+muscular atrophy (SMA) by examining read counts at relevant positions in the SMN1 & SMN2 genes. 
 """
 
 import argparse
@@ -13,6 +13,7 @@ import pprint
 import re
 from scipy.stats import binom
 
+"""Chromosome 5 contains both paralogs of the SMN gene: SMN1 and SMN2"""
 SMN_CHROMOSOME = {
     "37": "5",
     "38": "chr5",
@@ -21,7 +22,8 @@ SMN_CHROMOSOME = {
 
 VALID_GENOME_VERSIONS = set(SMN_CHROMOSOME.keys())
 
-SMN_DIFFERING_POSITION_1BASED = {
+"""This dictionary contains the only 2 exonic positions where the sequence of SMN1 differs from SMN2"""
+SMN_DIFFERING_POSITIONS_1BASED = {
     "37": {
         "c840":   {"SMN1": 70247773, "SMN2": 69372353},
         "c1124":  {"SMN1": 70248501, "SMN2": 69373081},
@@ -36,6 +38,7 @@ SMN_DIFFERING_POSITION_1BASED = {
     }
 }
 
+"""Single-nucleotide positions in the middle of SMN exons 1 through 6"""
 SMN_OTHER_EXON_POSITIONS_1BASED = {
     "37": {
         "exon1":  {"SMN1": 70220962, "SMN2": 69345544},
@@ -66,37 +69,44 @@ SMN_OTHER_EXON_POSITIONS_1BASED = {
     },
 }
 
-"""The IlluminaCopyNumberCaller paper [Chen 2020] Fig 3C. considers the 2,504 unaffected individuals from the 
-1kGP projects and shows that the most extreme observed ratio of SMN1 vs. SMN2 copy number is 1 to 4. Specifically, 
-~10 out of 2,504 individuals (0.4%) have 4 copies of SMN2 while having only 1 copy of SMN1.  
-For these individuals, we'd expect 20% of the reads that overlap the c.840 position in SMN1 and SMN2 to have the 
-'C' base found in the SMN1 paralog:
-
-      c840_reads_with_smn1_base_C / c840_total_reads ~= 0.2
 """
+MAX_TOTAL_SMN_COPIES represents the largest number of total SMN copies we'd expect to see when an individual has only 
+1 copy of SMN1.    
 
+The IlluminaCopyNumberCaller paper [Chen 2020] Fig 3C. considers 2,504 unaffected individuals from the 1kGP project and 
+shows that the most extreme observed ratio of SMN1 vs. SMN2 copy number is 1 to 4. Specifically, ~10 out of 2,504 
+individuals (0.4%) have 4 copies of SMN2 while having only 1 copy of SMN1.  
+"""
 MAX_TOTAL_SMN_COPIES = 5
 
 
-"""To differentiate individuals who have more than 0 copies of SMN1 (and so are unaffected or carriers) from 
-individuals who have 0 copies of SMN1 (and so should be called as affected with SMA), we need at least 14 reads coverage 
-to be certain (p < 0.05). 
+"""To confidently distinguish individuals who have who have 0 copies of SMN1 (and so are affected with SMA) from 
+individuals with 1 or more copies of SMN1 (and so are unaffected or carriers), we want there to be at least 14 reads 
+overlapping the c.840 position. This is because, with a null hypothesis of 1 copy of SMN1 and 4 copies of SMN2, the 
+binomial(r=0, n=14, p=1/5) yields p < 0.05.
 """
 MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS = 14
 
-"""Allow for a base sequencing error rate of Q30 on the Phred scale.
-Divide it by 3 since we only care about errors that convert the reference base to 1 of the 3 other bases (ie. convert the reference 'T' at the c.840 position in SMN2 to a 'C' which matches the 
-c.840 position in SMN1). This is similar to equation 6 in the HaplotypeCaller paper [Poplin 2018] 
+"""Assume a base sequencing error of Q30 (Phred scale) which = 0.001. Divide by 3 since we only care about errors 
+that convert the reference base to 1 of the 3 possible other bases (ie. convert the reference 'T' at the c.840 position 
+in SMN2 to a 'C' which matches the c.840 position in SMN1). This is similar to equation 6 in the [Poplin 2018] 
+HaplotypeCaller paper - in the section that describes the reference model. 
 """
 BASE_ERROR_RATE = 0.001 / 3
 
 
-"""When SMN """
+"""When SMN c.840 coverage is less than MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS, SMA Finder uses coverage of other SMN
+exons to differentiate cases where exon 7 is deleted from all copies of SMN1 and SMN2 in an individual 
+(which would mean the individual has SMA) from cases with overall low sequencing coverage of the SMN region (which 
+could be due to a technical issue during sequencing). Since this is a relatively indirect way of diagnosing SMA, 
+the MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE threshold is used as a hard cut-off to indentify cases where SMN exon 7
+is entirely missing from SMN1 and SMN2. 
+"""
 MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE = 2
 
 
 def parse_args():
-    """Parse and return command-line args"""
+    """Define and then parse command-line args"""
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file path")
@@ -124,7 +134,7 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
         pos_1based (int): 1-based genomic position where to count nucleotides.
 
     Return:
-        dict: The keys are nucleotides "A", "C", "G", "T", and the values are counters representing the number of times
+        dict: The keys are nucleotides "A", "C", "G", "T", and the values are counts representing the number of times
             a read contained that nucleotide at the given position.
     """
 
@@ -139,6 +149,7 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
             min_base_quality=13,
             truncate=True,
             multiple_iterators=False):
+
         if pileup_column.pos < pos_0based:
             continue
 
@@ -160,12 +171,12 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
     return nucleotide_counts
 
 
-def add_filename_and_file_type(cram_or_bam_path, output_row):
-    """Add 'filename' and 'file_type' fields to the output_row.
+def set_filename_and_file_type(cram_or_bam_path, output_row):
+    """Set 'filename' and 'file_type' fields in the output_row.
 
     Args:
         cram_or_bam_path (str): Input CRAM or BAM path.
-        output_row (dict): fields that will be written to the output .tsv
+        output_row (dict): Fields that will be written to the output .tsv
     """
     filename_pattern_match = re.match("(.*)[.](cram|bam)$", os.path.basename(cram_or_bam_path))
     if not filename_pattern_match:
@@ -177,12 +188,13 @@ def add_filename_and_file_type(cram_or_bam_path, output_row):
     })
 
 
-def determine_sample_id(alignment_file, output_row):
-    """Try to get the sample_id from the BAM file header by looking for a read group (@RG) with a sample (SM) field.
+def set_sample_id(alignment_file, output_row):
+    """Try reading the sample_id from the alignment file header by looking for a read group (@RG) with a sample (SM)
+    field.
 
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        output_row (dict): fields that will be written to the output .tsv
+        output_row (dict): Fields that will be written to the output .tsv
     """
     output_row["sample_id"] = ""
     for read_group in alignment_file.header.get("RG", []):
@@ -192,16 +204,16 @@ def determine_sample_id(alignment_file, output_row):
 
 
 def count_reads_at_differing_bases(alignment_file, genome_version, output_row):
-    """Count reads at SMN_DIFFERING_POSITION_1BASED and 'c840_reads_with_sm1_base_C', 'c840_total_reads', ... fields
+    """Count reads at SMN_DIFFERING_POSITIONS_1BASED and 'c840_reads_with_sm1_base_C', 'c840_total_reads', ... fields
     to the output_row.
 
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        genome_version (str): sample genome version (eg. "38")
-        output_row (dict): fields that will be written to the output .tsv
+        genome_version (str): Sample genome version (eg. "38")
+        output_row (dict): Fields that will be written to the output .tsv
     """
     chrom = SMN_CHROMOSOME[genome_version]
-    smn_differing_positions = SMN_DIFFERING_POSITION_1BASED[genome_version]
+    smn_differing_positions = SMN_DIFFERING_POSITIONS_1BASED[genome_version]
     for key, smn1_base in [("c840", "C"), ("c1124", "G")]:
         differing_position = smn_differing_positions[key]
         smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN1"])
@@ -218,8 +230,8 @@ def count_reads_at_other_exons(alignment_file, genome_version, output_row):
 
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        genome_version (str): sample genome version (eg. "38")
-        output_row (dict): fields that will be written to the output .tsv
+        genome_version (str): Sample genome version (eg. "38")
+        output_row (dict): Fields that will be written to the output .tsv
     """
 
     chrom = SMN_CHROMOSOME[genome_version]
@@ -235,40 +247,32 @@ def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supportin
     """Compute the likelihood of 0 copies of SMN1 vs the likelihood of 1 or more copies given the read data.
 
     Args:
-        n_reads_supporting_smn1 (int): number of reads that support the presence of a functional SMN1 paralog
-        total_reads (int): coverage estimate to use for comparison with n_reads_supporting_smn1
-        base_error_rate (float): probability of a sequencing error at any given base
+        n_reads_supporting_smn1 (int): Number of reads that support the presence of a functional SMN1 paralog
+        total_reads (int): Coverage estimate to use for comparison with n_reads_supporting_smn1
+        base_error_rate (float): Probability of a sequencing error at any given base
 
     Returns:
-        bool: returns True if n_reads_supporting_smn1 is too large (relative to total_reads) to be treated as just a
+        bool: Returns True if n_reads_supporting_smn1 is too large (relative to total_reads) to be treated as just a
             sequencing error. Otherwise, returns False.
         float: A PHRED-scale confidence score
     """
 
-    n_smn1_copies_with_max_likelihood = None
-    max_likelihood = 0
-    second_max_likelihood = 0
-    for n_smn1_copies in range(0, MAX_TOTAL_SMN_COPIES + 1):
-        if n_smn1_copies == 0:
-            p_smn1_read = base_error_rate
-        else:
-            p_smn1_read = n_smn1_copies/MAX_TOTAL_SMN_COPIES
+    likelihood_of_zero_copies = binom.pmf(n_reads_supporting_smn1, total_reads, base_error_rate)
 
-        current_likelihood = binom.pmf(n_reads_supporting_smn1, total_reads, p_smn1_read)
-        if current_likelihood > max_likelihood:
-            n_smn1_copies_with_max_likelihood = n_smn1_copies
-            second_max_likelihood = max_likelihood
-            max_likelihood = current_likelihood
-        elif current_likelihood > second_max_likelihood:
-            second_max_likelihood = current_likelihood
+    likelihood_of_one_or_more_copies = 0
+    for n_smn1_copies in range(1, MAX_TOTAL_SMN_COPIES + 1):
+        p_smn1_read = n_smn1_copies/MAX_TOTAL_SMN_COPIES
+        likelihood_of_one_or_more_copies = max(
+            likelihood_of_one_or_more_copies,
+            binom.pmf(n_reads_supporting_smn1, total_reads, p_smn1_read))
 
-    phred_scaled_confidence_score = int(10 * math.log10(max_likelihood / second_max_likelihood))
+    phred_scaled_confidence_score = abs(int(10 * math.log10(likelihood_of_one_or_more_copies / likelihood_of_zero_copies)))
 
-    return n_smn1_copies_with_max_likelihood == 0, phred_scaled_confidence_score
+    return likelihood_of_zero_copies > likelihood_of_one_or_more_copies, phred_scaled_confidence_score
 
 
 def call_sma_status(genome_version, output_row):
-    """Determines SMA status and sets 'sma_status', 'sma_status_details', 'confidence_score' and 'average_exon_coverage'
+    """Determine SMA status and set 'sma_status', 'sma_status_details', 'confidence_score' and 'average_exon_coverage'
     fields in the output_row.
 
     Args:
@@ -322,7 +326,7 @@ def call_sma_status(genome_version, output_row):
     output_row["sma_status"] = sma_status
     output_row["sma_status_details"] = sma_status_details
     output_row["confidence_score"] = confidence_score
-    output_row["average_exon_coverage"] = average_coverage_of_other_exons
+    output_row["average_coverage_at_exons_1_to_6"] = average_coverage_of_other_exons
 
 
 def main():
@@ -332,10 +336,10 @@ def main():
     output_rows = []
     for cram_or_bam_path in args.cram_or_bam_path:
         output_row = {}
-        add_filename_and_file_type(cram_or_bam_path, output_row)
+        set_filename_and_file_type(cram_or_bam_path, output_row)
 
         alignment_file = pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta)
-        determine_sample_id(alignment_file, output_row)
+        set_sample_id(alignment_file, output_row)
         count_reads_at_differing_bases(alignment_file, args.genome_version, output_row)
         count_reads_at_other_exons(alignment_file, args.genome_version, output_row)
 
