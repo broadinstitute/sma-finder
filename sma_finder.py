@@ -1,7 +1,13 @@
 #!/usr/env python3
 
-"""SMA Finder takes a CRAM or BAM file from a WES or WGS sample and determines whether the sample has spinal 
-muscular atrophy (SMA) by examining read counts at relevant positions in the SMN1 & SMN2 genes. 
+"""Spinal muscular atrophy (SMA) is a recessive genetic disease caused by the SMN gene. SMN consists of 2
+nearly-identical paralogs: SMN1 and SMN2. Both are located on chromosome 5 and differ from each other at only 2 exonic
+positions: c.840 and c.1124. SMN1 contains a 'C' nucleotide at the c.840 position while SMN2 contains a 'T'.
+This key difference causes skipping of exon 7 in most transcripts of SMN2 and explains why SMN1 is the main source of
+functional SMN protein. An individual's genome can have 0 or more copies of SMN1 and 0 or more copies of SMN2.
+If an individual has exactly 0 copies of functional SMN1, then they develop SMA.
+This script determines whether a sample is positive for SMA by examining read counts at the key c.840 position in
+SMN1 & SMN2.
 """
 
 import argparse
@@ -38,7 +44,9 @@ SMN_DIFFERING_POSITIONS_1BASED = {
     }
 }
 
-"""Single-nucleotide positions in the middle of SMN exons 1 through 6"""
+"""Single-nucleotide positions in the middle of SMN exons 1 through 6 that are used for checking coverage at these 
+exons.
+"""
 SMN_OTHER_EXON_POSITIONS_1BASED = {
     "37": {
         "exon1":  {"SMN1": 70220962, "SMN2": 69345544},
@@ -81,7 +89,7 @@ MAX_TOTAL_SMN_COPIES = 5
 
 
 """To confidently distinguish individuals who have who have 0 copies of SMN1 (and so are affected with SMA) from 
-individuals with 1 or more copies of SMN1 (and so are unaffected or carriers), we want there to be at least 14 reads 
+individuals with 1 or more copies of SMN1 (who are unaffected or carriers), we want there to be at least 14 reads 
 overlapping the c.840 position. This is because, with a null hypothesis of 1 copy of SMN1 and 4 copies of SMN2, the 
 binomial(r=0, n=14, p=1/5) yields p < 0.05.
 """
@@ -157,6 +165,7 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
             raise ValueError(f"Unexpected pileup position: {chrom}:{pileup_column.pos}. "
                              f"Expecting {chrom}:{pos_0based}")
 
+        # iterate over the reads in the pileup
         for base in pileup_column.get_query_sequences():
             if not base:
                 continue
@@ -176,7 +185,7 @@ def set_filename_and_file_type(cram_or_bam_path, output_row):
 
     Args:
         cram_or_bam_path (str): Input CRAM or BAM path.
-        output_row (dict): Fields that will be written to the output .tsv
+        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
     filename_pattern_match = re.match("(.*)[.](cram|bam)$", os.path.basename(cram_or_bam_path))
     if not filename_pattern_match:
@@ -194,7 +203,7 @@ def set_sample_id(alignment_file, output_row):
 
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        output_row (dict): Fields that will be written to the output .tsv
+        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
     output_row["sample_id"] = ""
     for read_group in alignment_file.header.get("RG", []):
@@ -210,7 +219,7 @@ def count_reads_at_differing_bases(alignment_file, genome_version, output_row):
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
         genome_version (str): Sample genome version (eg. "38")
-        output_row (dict): Fields that will be written to the output .tsv
+        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
     chrom = SMN_CHROMOSOME[genome_version]
     smn_differing_positions = SMN_DIFFERING_POSITIONS_1BASED[genome_version]
@@ -231,7 +240,7 @@ def count_reads_at_other_exons(alignment_file, genome_version, output_row):
     Args:
         alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
         genome_version (str): Sample genome version (eg. "38")
-        output_row (dict): Fields that will be written to the output .tsv
+        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
 
     chrom = SMN_CHROMOSOME[genome_version]
@@ -244,7 +253,7 @@ def count_reads_at_other_exons(alignment_file, genome_version, output_row):
 
 
 def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supporting_smn1, total_reads, base_error_rate):
-    """Compute the likelihood of 0 copies of SMN1 vs the likelihood of 1 or more copies given the read data.
+    """Compute the likelihood of the read data given 0 copies of SMN1 vs the likelihood given 1 or more copies.
 
     Args:
         n_reads_supporting_smn1 (int): Number of reads that support the presence of a functional SMN1 paralog
@@ -252,32 +261,31 @@ def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supportin
         base_error_rate (float): Probability of a sequencing error at any given base
 
     Returns:
-        bool: Returns True if n_reads_supporting_smn1 is too large (relative to total_reads) to be treated as just a
-            sequencing error. Otherwise, returns False.
+        bool: True if the likelihood of the given read data is greater if you assume 0 copies of SMN1 than if you
+            assume 1 or more copies of SMN1.
         float: A PHRED-scale confidence score
     """
 
-    likelihood_of_zero_copies = binom.pmf(n_reads_supporting_smn1, total_reads, base_error_rate)
+    likelihood_given_zero_copies = binom.pmf(n_reads_supporting_smn1, total_reads, base_error_rate)
 
-    likelihood_of_one_or_more_copies = 0
+    likelihood_given_one_or_more_copies = 0
     for n_smn1_copies in range(1, MAX_TOTAL_SMN_COPIES + 1):
         p_smn1_read = n_smn1_copies/MAX_TOTAL_SMN_COPIES
-        likelihood_of_one_or_more_copies = max(
-            likelihood_of_one_or_more_copies,
+        likelihood_given_one_or_more_copies = max(
+            likelihood_given_one_or_more_copies,
             binom.pmf(n_reads_supporting_smn1, total_reads, p_smn1_read))
 
-    phred_scaled_confidence_score = abs(int(10 * math.log10(likelihood_of_one_or_more_copies / likelihood_of_zero_copies)))
+    phred_scaled_confidence_score = abs(int(10 * math.log10(likelihood_given_one_or_more_copies / likelihood_given_zero_copies)))
 
-    return likelihood_of_zero_copies > likelihood_of_one_or_more_copies, phred_scaled_confidence_score
+    return likelihood_given_zero_copies > likelihood_given_one_or_more_copies, phred_scaled_confidence_score
 
 
 def call_sma_status(genome_version, output_row):
-    """Determine SMA status and set 'sma_status', 'sma_status_details', 'confidence_score' and 'average_exon_coverage'
-    fields in the output_row.
+    """Compute SMA status and set 'sma_status', 'confidence_score' and 'average_exon_coverage' fields in the output_row.
 
     Args:
         genome_version (str): sample genome version (eg. "38")
-        output_row (dict): fields that will be written to the output .tsv
+        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
 
     exon_positions = SMN_OTHER_EXON_POSITIONS_1BASED[genome_version]
@@ -289,42 +297,22 @@ def call_sma_status(genome_version, output_row):
             output_row['c840_reads_with_smn1_base_C'], output_row['c840_total_reads'], BASE_ERROR_RATE)
         if zero_copies_more_likely:
             sma_status = "has SMA"
-            sma_status_details = "has 0 copies of SMN1"
         else:
             sma_status = "does not have SMA"
-            sma_status_details = "has 1 or more copies of SMN1"
-    else:
-        if average_coverage_of_other_exons >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
-            zero_copies_more_likely, confidence_score = is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
-                output_row['c840_reads_with_smn1_base_C'], average_coverage_of_other_exons, BASE_ERROR_RATE)
+    elif average_coverage_of_other_exons >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
+        zero_copies_more_likely, confidence_score = is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
+            output_row['c840_reads_with_smn1_base_C'], average_coverage_of_other_exons, BASE_ERROR_RATE)
 
-            if zero_copies_more_likely and \
-                    output_row['c840_reads_with_smn1_base_C'] <= MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE:
-                sma_status = "may have SMA"
-                sma_status_details = (
-                    f"SMN exon 7 has approximately zero coverage while SMN exons 1-6 have "
-                    f"coverage >= {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS}x. This could be due to sequencing issues "
-                    f"or a deletion of exon 7 in all copies of SMN1 and SMN2."
-                )
-            else:
-                # more tha zero copies likely, or more than 2 reads
-                sma_status = "likely not SMA"
-                sma_status_details = (
-                    f"SMN exons 1-6 have coverage >= {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS}x while exon 7 has "
-                    f"approximately zero coverage, suggesting either technical problems with sequencing exon 7, or "
-                    f"alternatively the deletion of exon 7 in all copies of SMN1 and SMN2"
-                )
+        if output_row['c840_reads_with_smn1_base_C'] <= MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE \
+                and zero_copies_more_likely:
+            sma_status = "may have SMA"
         else:
-            sma_status = "not enough coverage of SMN"
-            sma_status_details = (
-                f"SMN exons 1-6 have coverage >= {MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS}x while exon 7 has "
-                f"approximately zero coverage, suggesting either technical problems with sequencing exon 7, or "
-                f"alternatively the deletion of exon 7 in all copies of SMN1 and SMN2"
-            )
-            confidence_score = 0
+            sma_status = "likely not SMA"
+    else:
+        sma_status = "no call"
+        confidence_score = 0
 
     output_row["sma_status"] = sma_status
-    output_row["sma_status_details"] = sma_status_details
     output_row["confidence_score"] = confidence_score
     output_row["average_coverage_at_exons_1_to_6"] = average_coverage_of_other_exons
 
