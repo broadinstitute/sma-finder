@@ -303,18 +303,17 @@ def call_sma_status(genome_version, output_row):
         zero_copies_more_likely, confidence_score = is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
             output_row['c840_reads_with_smn1_base_C'], average_coverage_of_other_exons, BASE_ERROR_RATE)
 
-        if output_row['c840_reads_with_smn1_base_C'] <= MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE \
-                and zero_copies_more_likely:
+        if output_row['c840_reads_with_smn1_base_C'] <= MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE and zero_copies_more_likely:
             sma_status = "may have SMA"
         else:
             sma_status = "likely not SMA"
     else:
-        sma_status = "no call"
+        sma_status = "not enough coverage"
         confidence_score = 0
 
     output_row["sma_status"] = sma_status
     output_row["confidence_score"] = confidence_score
-    output_row["average_coverage_at_exons_1_to_6"] = average_coverage_of_other_exons
+    output_row["average_coverage_at_exons_1_to_6"] = round(average_coverage_of_other_exons, 1)
 
 
 def main():
@@ -328,22 +327,28 @@ def main():
 
         alignment_file = pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta)
         set_sample_id(alignment_file, output_row)
-        count_reads_at_differing_bases(alignment_file, args.genome_version, output_row)
         count_reads_at_other_exons(alignment_file, args.genome_version, output_row)
+        count_reads_at_differing_bases(alignment_file, args.genome_version, output_row)
+        alignment_file.close()
 
         call_sma_status(args.genome_version, output_row)
 
         output_rows.append(output_row)
-        if args.verbose:
-            print("Output row:")
-            pprint.pprint(output_row)
-
-        alignment_file.close()
 
     # write results to .tsv
     df = pd.DataFrame(output_rows)
-    reordered_output_columns = ["filename", "file_type", "sample_id", "sma_status", "sma_status_details"]
+    reordered_output_columns = [
+        "filename", "file_type", "sample_id", "sma_status", "confidence_score",
+        "c840_reads_with_smn1_base_C", "c840_total_reads", "average_coverage_at_exons_1_to_6",
+    ]
     reordered_output_columns += [c for c in df.columns if c not in reordered_output_columns]
+
+    if args.verbose:
+        for i, (_, row) in enumerate(df.iterrows()):
+            print(f"row #{i+1}:")
+            for column in reordered_output_columns:
+                print(f"        {column:35s} {row[column]}")
+
     df[reordered_output_columns].to_csv(args.output_tsv, sep='\t', header=True, index=False)
     print(f"Wrote {len(output_rows)} rows to {args.output_tsv}")
 
