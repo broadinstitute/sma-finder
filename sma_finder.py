@@ -15,7 +15,6 @@ import math
 import os
 import pysam
 import pandas as pd
-import pprint
 import re
 from scipy.stats import binom
 
@@ -123,12 +122,20 @@ def parse_args():
     parser.add_argument("-o", "--output-tsv", help="Output tsv file path", default="output.tsv")
     parser.add_argument("-v", "--verbose", action="store_true", help="Whether to print extra details during the run")
     parser.add_argument("cram_or_bam_path", nargs="+", help="One or more CRAM or BAM file paths")
+
     args = parser.parse_args()
 
     # make sure the input files exist
     for path in [args.reference_fasta] + args.cram_or_bam_path:
         if not os.path.isfile(path):
             parser.error(f"File not found: {path}")
+
+    if args.verbose:
+        print("Input args:")
+        print(f"    --reference-fasta: {os.path.abspath(args.reference_fasta)}")
+        print(f"    --genome-version: {args.genome_version}")
+        print(f"    --output-tsv: {os.path.abspath(args.output_tsv)}")
+        print(f"    CRAMS or BAMS:", ", ".join(map(os.path.abspath, args.cram_or_bam_path)))
 
     return args
 
@@ -345,12 +352,13 @@ def main():
 
     if args.verbose:
         for i, (_, row) in enumerate(df.iterrows()):
-            print(f"row #{i+1}:")
+            print("----")
+            print(f"Output row #{i+1}:")
             for column in reordered_output_columns:
                 print(f"        {column:35s} {row[column]}")
 
     df[reordered_output_columns].to_csv(args.output_tsv, sep='\t', header=True, index=False)
-    print(f"Wrote {len(output_rows)} rows to {args.output_tsv}")
+    print(f"Wrote {len(output_rows)} rows to {os.path.abspath(args.output_tsv)}")
 
 
 if __name__ == "__main__":
