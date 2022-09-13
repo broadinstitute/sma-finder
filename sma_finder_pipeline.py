@@ -5,8 +5,8 @@ import os
 import pandas as pd
 import sys
 
-from sma_finder import SMN_CHROMOSOME, SMN_DIFFERING_POSITION_1BASED, SMN_OTHER_EXON_POSITIONS_1BASED
-from step_pipeline import pipeline, Backend, Localize, Delocalize
+from sma_finder import SMN_C840_POSITION_1BASED
+from step_pipeline import pipeline, Backend, Localize, Delocalize, all_outputs_exist
 
 DOCKER_IMAGE = "weisburd/sma_finder@sha256:8ad91ba16f3e360266bd3e9f278dffd04986384bd1396922e94bb937f93b1f3e"
 
@@ -232,13 +232,9 @@ def main():
         s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
 
         # extract the regions of interest into a local bam file to avoid random access network requests downstream
-        smn_positions_list = [smn_position for smn_positions in [
-            *SMN_DIFFERING_POSITION_1BASED[row_genome_version].values(),
-            *SMN_OTHER_EXON_POSITIONS_1BASED[row_genome_version].values(),
-        ] for smn_position in smn_positions.values()]
-        smn_chrom = SMN_CHROMOSOME[row_genome_version]
-        smn_interval_start = min(smn_positions_list) - SMN_REGION_PADDING
-        smn_interval_end = max(smn_positions_list) + SMN_REGION_PADDING
+        smn_chrom, smn1_position, _, smn2_position, _ = SMN_C840_POSITION_1BASED[row_genome_version]
+        smn_interval_start = min(smn1_position, smn2_position) - SMN_REGION_PADDING
+        smn_interval_end = max(smn1_position, smn2_position) + SMN_REGION_PADDING
         smn_region = f"{smn_chrom}:{smn_interval_start}-{smn_interval_end}"
 
         local_bam_path = f"{row_sample_id}.bam"
@@ -276,6 +272,9 @@ def main():
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
     for i, step in enumerate(steps):
+        if not all_outputs_exist(step):
+            print(f"WARNING: skipping {step}")
+            continue
         s2.depends_on(step)
         tsv_input = s2.use_previous_step_outputs_as_inputs(step, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
         if i == 0:

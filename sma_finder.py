@@ -18,66 +18,36 @@ import pandas as pd
 import re
 from scipy.stats import binom
 
-"""Chromosome 5 contains both paralogs of the SMN gene: SMN1 and SMN2"""
-SMN_CHROMOSOME = {
-    "37": "5",
-    "38": "chr5",
-    "T2T": "5",
-}
+"""Output column names that will be populated for each sample in the output table"""
+OUTPUT_COLUMNS = [
+    "filename",
+    "file_type",
+    "sample_id",
+    "sma_status",
+    "confidence_score",
+    "c840_reads_with_smn1_base_C",
+    "c840_total_reads",
+]
 
-VALID_GENOME_VERSIONS = set(SMN_CHROMOSOME.keys())
 
-"""This dictionary contains the only 2 exonic positions where the sequence of SMN1 differs from SMN2"""
-SMN_DIFFERING_POSITIONS_1BASED = {
-    "37": {
-        "c840":   {"SMN1": 70247773, "SMN2": 69372353},
-        "c1124":  {"SMN1": 70248501, "SMN2": 69373081},
-    },
-    "38": {
-        "c840":   {"SMN1": 70951946, "SMN2": 70076526},
-        "c1124":  {"SMN1": 70952674, "SMN2": 70077254},
-    },
-    "T2T": {
-        "c840":   {"SMN1": 71408734, "SMN2": 70810812},
-        "c1124":  {"SMN1": 71409463, "SMN2": 70810084},
-    }
-}
+"""Each key is a reference genome version, and each value is a 5-tuple with the genomic coordinates and reference base 
+at the c.840 positions in SMN1 and SMN2: 
 
-"""Single-nucleotide positions in the middle of SMN exons 1 through 6 that are used for checking coverage at these 
-exons.
+(
+    chromosome, 
+    1-based coordinates of the c.840 position in SMN1, 
+    SMN1 reference base, 
+    1-based coordinates of the c.840 position in SMN2, 
+    SMN2 reference base
+)  
 """
-SMN_OTHER_EXON_POSITIONS_1BASED = {
-    "37": {
-        "exon1":  {"SMN1": 70220962, "SMN2": 69345544},
-        "exon2a": {"SMN1": 70234701, "SMN2": 69359277},
-        "exon2b": {"SMN1": 70237275, "SMN2": 69361851},
-        "exon3":  {"SMN1": 70238285, "SMN2": 69362861},
-        "exon4":  {"SMN1": 70238621, "SMN2": 69363197},
-        "exon5":  {"SMN1": 70240532, "SMN2": 69365109},
-        "exon6":  {"SMN1": 70241948, "SMN2": 69366523},
-    },
-    "38": {
-        "exon1":  {"SMN1": 70925135, "SMN2": 70049717},
-        "exon2a": {"SMN1": 70938874, "SMN2": 70063450},
-        "exon2b": {"SMN1": 70941448, "SMN2": 70066024},
-        "exon3":  {"SMN1": 70942458, "SMN2": 70067034},
-        "exon4":  {"SMN1": 70942794, "SMN2": 70067370},
-        "exon5":  {"SMN1": 70944705, "SMN2": 70069282},
-        "exon6":  {"SMN1": 70946121, "SMN2": 70070696},
-    },
-    "T2T":{
-        "exon1":  {"SMN1": 71381923, "SMN2": 70837627},
-        "exon2a": {"SMN1": 71395666, "SMN2": 70823885},
-        "exon2b": {"SMN1": 71398240, "SMN2": 70821311},
-        "exon3":  {"SMN1": 71399250, "SMN2": 70820301},
-        "exon4":  {"SMN1": 71399586, "SMN2": 70819965},
-        "exon5":  {"SMN1": 71401496, "SMN2": 70818055},
-        "exon6":  {"SMN1": 71402910, "SMN2": 70816641},
-    },
+SMN_C840_POSITION_1BASED = {
+    "37": ("5", 70247773, "C", 69372353, "T"),
+    "38": ("chr5", 70951946, "C", 70076526, "T"),
+    "T2T": ("5", 71408734, "C",  70810812, "T"),
 }
 
-"""
-MAX_TOTAL_SMN_COPIES represents the largest number of total SMN copies we'd expect to see when an individual has only 
+"""MAX_TOTAL_SMN_COPIES represents the largest number of total SMN copies we'd expect to see when an individual has only 
 1 copy of SMN1.    
 
 The IlluminaCopyNumberCaller paper [Chen 2020] Fig 3C. considers 2,504 unaffected individuals from the 1kGP project and 
@@ -102,22 +72,12 @@ HaplotypeCaller paper - in the section that describes the reference model.
 BASE_ERROR_RATE = 0.001 / 3
 
 
-"""When SMN c.840 coverage is less than MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS, SMA Finder uses coverage of other SMN
-exons to differentiate cases where exon 7 is deleted from all copies of SMN1 and SMN2 in an individual 
-(which would mean the individual has SMA) from cases with overall low sequencing coverage of the SMN region (which 
-could be due to a technical issue during sequencing). Since this is a relatively indirect way of diagnosing SMA, 
-the MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE threshold is used as a hard cut-off to indentify cases where SMN exon 7
-is entirely missing from SMN1 and SMN2. 
-"""
-MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE = 2
-
-
 def parse_args():
     """Define and then parse command-line args"""
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file path")
-    parser.add_argument("-g", "--genome-version", required=True, choices=sorted(VALID_GENOME_VERSIONS),
+    parser.add_argument("-g", "--genome-version", required=True, choices=sorted(SMN_C840_POSITION_1BASED.keys()),
                         help="Reference genome version")
     parser.add_argument("-o", "--output-tsv", help="Output tsv file path", default="output.tsv")
     parser.add_argument("-v", "--verbose", action="store_true", help="Whether to print extra details during the run")
@@ -219,46 +179,6 @@ def set_sample_id(alignment_file, output_row):
             break
 
 
-def count_reads_at_differing_bases(alignment_file, genome_version, output_row):
-    """Count reads at SMN_DIFFERING_POSITIONS_1BASED and 'c840_reads_with_sm1_base_C', 'c840_total_reads', ... fields
-    to the output_row.
-
-    Args:
-        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        genome_version (str): Sample genome version (eg. "38")
-        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
-    """
-    chrom = SMN_CHROMOSOME[genome_version]
-    smn_differing_positions = SMN_DIFFERING_POSITIONS_1BASED[genome_version]
-    for key, smn1_base in [("c840", "C"), ("c1124", "G")]:
-        differing_position = smn_differing_positions[key]
-        smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN1"])
-        smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, differing_position["SMN2"])
-        output_row.update({
-            f"{key}_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] + smn2_nucleotide_counts[smn1_base],
-            f"{key}_total_reads": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
-        })
-
-
-def count_reads_at_other_exons(alignment_file, genome_version, output_row):
-    """Compute coverage at SMN_OTHER_EXON_POSITIONS_1BASED and add 'reads_at_exon1', 'reads_at_exon2a', ... fields
-    to the output_row.
-
-    Args:
-        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
-        genome_version (str): Sample genome version (eg. "38")
-        output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
-    """
-
-    chrom = SMN_CHROMOSOME[genome_version]
-    for exon_name, exon_positions in SMN_OTHER_EXON_POSITIONS_1BASED[genome_version].items():
-        smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN1"])
-        smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, exon_positions["SMN2"])
-        output_row.update({
-            f"reads_at_{exon_name}": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
-        })
-
-
 def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supporting_smn1, total_reads, base_error_rate):
     """Compute the likelihood of the read data given 0 copies of SMN1 vs the likelihood given 1 or more copies.
 
@@ -287,17 +207,12 @@ def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supportin
     return likelihood_given_zero_copies > likelihood_given_one_or_more_copies, phred_scaled_confidence_score
 
 
-def call_sma_status(genome_version, output_row):
-    """Compute SMA status and set 'sma_status', 'confidence_score' and 'average_exon_coverage' fields in the output_row.
+def call_sma_status(output_row):
+    """Compute SMA status and set 'sma_status' and 'confidence_score' fields in the output_row.
 
     Args:
-        genome_version (str): sample genome version (eg. "38")
         output_row (dict): dictionary of fields to be written to the .tsv output row for the current sample
     """
-
-    exon_positions = SMN_OTHER_EXON_POSITIONS_1BASED[genome_version]
-    average_coverage_of_other_exons = sum(output_row[f"reads_at_{exon_name}"] for exon_name in exon_positions)
-    average_coverage_of_other_exons /= len(exon_positions)
 
     if output_row['c840_total_reads'] >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
         zero_copies_more_likely, confidence_score = is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
@@ -306,58 +221,49 @@ def call_sma_status(genome_version, output_row):
             sma_status = "has SMA"
         else:
             sma_status = "does not have SMA"
-    elif average_coverage_of_other_exons >= MIN_COVERAGE_NEEDED_TO_CALL_SMA_STATUS:
-        zero_copies_more_likely, confidence_score = is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(
-            output_row['c840_reads_with_smn1_base_C'], average_coverage_of_other_exons, BASE_ERROR_RATE)
-
-        if output_row['c840_reads_with_smn1_base_C'] <= MAX_SMN1_READS_THRESHOLD_WHEN_LOW_COVERAGE and zero_copies_more_likely:
-            sma_status = "may have SMA"
-        else:
-            sma_status = "likely not SMA"
     else:
-        sma_status = "not enough coverage"
+        sma_status = "not enough coverage at SMN c.840 position"
         confidence_score = 0
 
     output_row["sma_status"] = sma_status
     output_row["confidence_score"] = confidence_score
-    output_row["average_coverage_at_exons_1_to_6"] = round(average_coverage_of_other_exons, 1)
 
 
 def main():
     args = parse_args()
+
+    chrom, c840_position_in_smn1, smn1_base, c840_position_in_smn2, _ = SMN_C840_POSITION_1BASED[args.genome_version]
 
     # process the input BAM or CRAM files
     output_rows = []
     for cram_or_bam_path in args.cram_or_bam_path:
         output_row = {}
         set_filename_and_file_type(cram_or_bam_path, output_row)
+        with pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta) as alignment_file:
+            set_sample_id(alignment_file, output_row)
+            smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn1)
+            smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn2)
 
-        alignment_file = pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta)
-        set_sample_id(alignment_file, output_row)
-        count_reads_at_other_exons(alignment_file, args.genome_version, output_row)
-        count_reads_at_differing_bases(alignment_file, args.genome_version, output_row)
-        alignment_file.close()
+        output_row.update({
+            f"c840_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] + smn2_nucleotide_counts[smn1_base],
+            f"c840_total_reads": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
+        })
 
-        call_sma_status(args.genome_version, output_row)
+        call_sma_status(output_row)
 
         output_rows.append(output_row)
 
     # write results to .tsv
     df = pd.DataFrame(output_rows)
-    reordered_output_columns = [
-        "filename", "file_type", "sample_id", "sma_status", "confidence_score",
-        "c840_reads_with_smn1_base_C", "c840_total_reads", "average_coverage_at_exons_1_to_6",
-    ]
-    reordered_output_columns += [c for c in df.columns if c not in reordered_output_columns]
 
     if args.verbose:
         for i, (_, row) in enumerate(df.iterrows()):
             print("----")
             print(f"Output row #{i+1}:")
-            for column in reordered_output_columns:
+            for column in OUTPUT_COLUMNS:
                 print(f"        {column:35s} {row[column]}")
 
-    df[reordered_output_columns].to_csv(args.output_tsv, sep='\t', header=True, index=False)
+    df[OUTPUT_COLUMNS].to_csv(args.output_tsv, sep='\t', header=True, index=False)
     print(f"Wrote {len(output_rows)} rows to {os.path.abspath(args.output_tsv)}")
 
 
