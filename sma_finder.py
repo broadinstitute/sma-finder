@@ -71,6 +71,11 @@ HaplotypeCaller paper - in the section that describes the reference model.
 """
 BASE_ERROR_RATE = 0.001 / 3
 
+"""A minimum value for log-likelihood. This is used when very small likelihood values (eg. 10**-500) are rounded down
+to zero and lead to domain errors in the log calculation.   
+"""
+MINIMUM_LOG_LIKELIHOOD = -100
+
 
 def parse_args():
     """Define and then parse command-line args"""
@@ -192,6 +197,8 @@ def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supportin
             assume 1 or more copies of SMN1.
         float: A PHRED-scale confidence score
     """
+    if total_reads == 0:
+        raise ValueError("total_reads == 0")
 
     likelihood_given_zero_copies = binom.pmf(n_reads_supporting_smn1, total_reads, base_error_rate)
 
@@ -202,8 +209,22 @@ def is_zero_copies_of_smn1_more_likely_than_one_or_more_copies(n_reads_supportin
             likelihood_given_one_or_more_copies,
             binom.pmf(n_reads_supporting_smn1, total_reads, p_smn1_read))
 
-    phred_scaled_confidence_score = abs(int(10 * math.log10(likelihood_given_one_or_more_copies / likelihood_given_zero_copies)))
+    if likelihood_given_zero_copies == 0 and likelihood_given_one_or_more_copies == 0:
+        raise ValueError(f"likelihood_given_zero_copies == 0 and likelihood_given_one_or_more_copies == 0 when "
+                         f"n_reads_supporting_smn1={n_reads_supporting_smn1}, total_reads={total_reads}, and "
+                         f"base_error_rate={base_error_rate}")
 
+    log_likelihood_given_zero_copies = MINIMUM_LOG_LIKELIHOOD
+    if likelihood_given_zero_copies > 0:
+        log_likelihood_given_zero_copies = max(math.log10(likelihood_given_zero_copies), MINIMUM_LOG_LIKELIHOOD)
+
+    log_likelihood_given_one_or_more_copies = MINIMUM_LOG_LIKELIHOOD
+    if likelihood_given_one_or_more_copies > 0:
+        log_likelihood_given_one_or_more_copies = max(math.log10(likelihood_given_one_or_more_copies), MINIMUM_LOG_LIKELIHOOD)
+
+    phred_scaled_confidence_score = int(10 * abs(
+        log_likelihood_given_zero_copies - log_likelihood_given_one_or_more_copies
+    ))
     return likelihood_given_zero_copies > likelihood_given_one_or_more_copies, phred_scaled_confidence_score
 
 

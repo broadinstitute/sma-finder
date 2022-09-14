@@ -8,7 +8,7 @@ import sys
 from sma_finder import SMN_C840_POSITION_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize, all_outputs_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:5d04c37e7e6088301010647da9fab67783dcb55776fb0ab82e8b2f3db0b7f878"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:4730022019668d1837bcdcd1fb6db120ad23788ffe83c3e2c7b23a181db76f47"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -272,9 +272,9 @@ def main():
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
     for i, step in enumerate(steps):
-        if not all_outputs_exist(step):
-            print(f"WARNING: skipping {step}")
-            continue
+        #if args.skip_step1 and not all_outputs_exist(step):
+        #    print(f"WARNING: skipping {step}")
+        #    continue
         s2.depends_on(step)
         tsv_input = s2.use_previous_step_outputs_as_inputs(step, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
         if i == 0:
