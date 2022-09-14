@@ -74,7 +74,7 @@ BASE_ERROR_RATE = 0.001 / 3
 """A minimum value for log-likelihood. This is used when very small likelihood values (eg. 10**-500) are rounded down
 to zero and lead to domain errors in the log calculation.   
 """
-MINIMUM_LOG_LIKELIHOOD = -100
+MINIMUM_LOG_LIKELIHOOD = -300
 
 
 def parse_args():
@@ -287,6 +287,8 @@ def main():
     df[OUTPUT_COLUMNS].to_csv(args.output_tsv, sep='\t', header=True, index=False)
     print(f"Wrote {len(output_rows)} rows to {os.path.abspath(args.output_tsv)}")
 
+
+#%%
 
 if __name__ == "__main__":
     main()

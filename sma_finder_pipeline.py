@@ -8,7 +8,7 @@ import sys
 from sma_finder import SMN_C840_POSITION_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize, all_outputs_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:4730022019668d1837bcdcd1fb6db120ad23788ffe83c3e2c7b23a181db76f47"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:b9a635d0adce90a13fdbcdec4336dc2f124d50fe7c63074719379c8eb99a01f4"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
