@@ -288,7 +288,5 @@ def main():
     print(f"Wrote {len(output_rows)} rows to {os.path.abspath(args.output_tsv)}")
 
 
-#%%
-
 if __name__ == "__main__":
     main()
