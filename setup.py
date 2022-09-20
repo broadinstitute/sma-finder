@@ -24,7 +24,7 @@ with open("requirements.txt", "rt") as f:
 setup(
     name='sma_finder',
     version="1.0",
-    description="A tool for diagnosing spinal muscular atrophy (SMA) using exome, genome or RNA sequencing data",
+    description="A tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data",
     install_requires=requirements,
     cmdclass={
         'publish': PublishCommand,
