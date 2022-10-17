@@ -23,7 +23,7 @@ with open("requirements.txt", "rt") as f:
 
 setup(
     name='sma_finder',
-    version="1.0",
+    version="1.0.2",
     description="A tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data",
     install_requires=requirements,
     cmdclass={
@@ -38,6 +38,7 @@ setup(
     long_description=long_description,
     python_requires=">=3.7",
     license="MIT",
+    scripts=["sma_finder.py"],
     keywords=["Spinal Muscular Atrophy", "SMA", "SMN", "SMN1", "SMN2"],
     test_suite="setup.test_suite",
     url='https://github.com/broadinstitute/sma_finder',
