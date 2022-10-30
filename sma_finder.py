@@ -11,6 +11,7 @@ SMN1 & SMN2.
 """
 
 import argparse
+import hashlib
 import math
 import os
 import pysam
@@ -20,7 +21,7 @@ from scipy.stats import binom
 
 """Output column names that will be populated for each sample in the output table"""
 OUTPUT_COLUMNS = [
-    "filename",
+    "filename_prefix",
     "file_type",
     "sample_id",
     "sma_status",
@@ -84,7 +85,7 @@ def parse_args():
     parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file path")
     parser.add_argument("-g", "--genome-version", required=True, choices=sorted(SMN_C840_POSITION_1BASED.keys()),
                         help="Reference genome version")
-    parser.add_argument("-o", "--output-tsv", help="Output tsv file path", default="output.tsv")
+    parser.add_argument("-o", "--output-tsv", help="Optional output tsv file path")
     parser.add_argument("-v", "--verbose", action="store_true", help="Whether to print extra details during the run")
     parser.add_argument("cram_or_bam_path", nargs="+", help="One or more CRAM or BAM file paths")
 
@@ -94,6 +95,15 @@ def parse_args():
     for path in [args.reference_fasta] + args.cram_or_bam_path:
         if not os.path.isfile(path):
             parser.error(f"File not found: {path}")
+
+    # define the output_tsv if it wasn't specified
+    if not args.output_tsv:
+        if len(args.cram_or_bam_path) > 1:
+            input_paths_hash = hashlib.sha256("|".join(args.cram_or_bam_path).encode('utf-8')).hexdigest().upper()
+            args.output_tsv = f"sma_finder_results.{len(args.cram_or_bam_path)}_samples.{input_paths_hash[:10]}.tsv"
+        else:
+            filename_prefix, _ = get_filename_prefix_and_file_type(args.cram_or_bam_path[0])
+            args.output_tsv = f"{filename_prefix}.sma_finder_results.tsv"
 
     if args.verbose:
         print("Input args:")
@@ -152,8 +162,8 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
     return nucleotide_counts
 
 
-def set_filename_and_file_type(cram_or_bam_path, output_row):
-    """Set 'filename' and 'file_type' fields in the output_row.
+def get_filename_prefix_and_file_type(cram_or_bam_path):
+    """Returns the filename prefix and file type suffix.
 
     Args:
         cram_or_bam_path (str): Input CRAM or BAM path.
@@ -163,10 +173,10 @@ def set_filename_and_file_type(cram_or_bam_path, output_row):
     if not filename_pattern_match:
         raise ValueError(f"File path doesn't end with have '.cram' or '.bam': {cram_or_bam_path}")
 
-    output_row.update({
-        "filename": filename_pattern_match.group(1),
-        "file_type": filename_pattern_match.group(2),
-    })
+    filename_prefix = filename_pattern_match.group(1)
+    file_type = filename_pattern_match.group(2)
+
+    return filename_prefix, file_type
 
 
 def set_sample_id(alignment_file, output_row):
@@ -259,7 +269,8 @@ def main():
     output_rows = []
     for cram_or_bam_path in args.cram_or_bam_path:
         output_row = {}
-        set_filename_and_file_type(cram_or_bam_path, output_row)
+        output_row["filename_prefix"], output_row["file_type"] = get_filename_prefix_and_file_type(cram_or_bam_path)
+
         with pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta) as alignment_file:
             set_sample_id(alignment_file, output_row)
             smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn1)
