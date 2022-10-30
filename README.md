@@ -44,8 +44,8 @@ Wrote 1 rows to sample1.sma_finder_results.tsv
 ### Usage
 
 Usage help text:
-```
 
+```
 sma_finder --help
 
 usage: sma_finder [-h] -R REFERENCE_FASTA -g {37,38,T2T} [-o OUTPUT_TSV]
