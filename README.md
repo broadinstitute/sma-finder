@@ -68,14 +68,14 @@ optional arguments:
 
 
 
-### Output Columns
+### Output
 
-The output .tsv contains the following columns:
+The output .tsv will contain one row per input CRAM or BAM file and will have the following columns:
 
 <table>
     <tr>
         <td><b>filename_prefix</b></td>
-        <td>CRAM or BAM filename prefix</td>
+        <td>CRAM or BAM filename prefix. If the input file is <i>/path/sample1.cram</i> this would be <i>"sample1"</i>.</td>
     </tr>
     <tr>
         <td><b>file_type</b></td>
