@@ -1,10 +1,12 @@
 ## SMA Finder  
 
 A tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data.
-It takes 1 or more alignment files (CRAM or BAM) and reports whether 
-the sample(s) have complete loss of functional *SMN1* due to a mutation involving the c.840 position. 
-Testing on 13 positive control cases and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
-The tool's limitations are that it doesn't report SMA carrier status or *SMN2* copy number. Also, it does not detect the ~5% of SMA cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. Finally, SMA Finder may also work for RNA-seq, targeted sequencing, or long-read alignment files, but we currently lack the positive controls needed to evaluate this.
+It takes 1 or more alignment files (CRAM or BAM) as input and reports whether 
+the sample(s) have complete loss of functional *SMN1*.
+
+Testing on 13 positive controls and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
+
+*Limitations:* SMA Finder doesn't report SMA carrier status or *SMN2* copy number. Also, it does not detect the ~5% of SMA cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. Finally, although SMA Finder may also work for RNA-seq, targeted sequencing, or long-read alignment files, we currently lack the positive controls needed to evaluate this.
 
 
 ### Install
