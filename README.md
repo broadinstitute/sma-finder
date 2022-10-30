@@ -94,7 +94,7 @@ The output .tsv will contain one row per input CRAM or BAM file and will have th
         </td>
     <tr>
         <td><b>confidence_score</b></td>
-        <td>PHRED-scaled integer confidence score for whether sma_status is correct. This is similar to the PL field in GATK HaplotypeCaller genotypes.</td>
+        <td>PHRED-scaled integer score measuring the level of confidence that the sma_status is correct. The bigger the score, the higher the confidence. It is calculated in a similar way to the PL field in GATK HaplotypeCaller genotypes.</td>
     <tr>
         <td><b>c840_reads_with_smn1_base_C</b></td>
         <td>number of reads that have a 'C' nucleotide at the c.840 position in SMN1 plus SMN2</td> 
