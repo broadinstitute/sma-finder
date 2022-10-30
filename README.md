@@ -15,7 +15,6 @@ Testing on 13 positive controls and 10,434 negative controls showed 100% sensiti
 python3 -m pip install sma-finder
 ```
 
-
 ### Example
 
 Example command:
@@ -66,11 +65,11 @@ optional arguments:
   -v, --verbose         Whether to print extra details during the run
 ```
 
-
+---
 
 ### Output
 
-The output .tsv will contain one row per input CRAM or BAM file and will have the following columns:
+The output .tsv contains one row per input CRAM or BAM file and has the following columns:
 
 <table>
     <tr>
@@ -104,6 +103,9 @@ The output .tsv will contain one row per input CRAM or BAM file and will have th
     </tr>
 </table>
 
+---
 ### Details
+
+This poster describing SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
 
 <img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
