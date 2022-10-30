@@ -106,6 +106,6 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
 ---
 ### Details
 
-This poster describing SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
+This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
 
 <img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
