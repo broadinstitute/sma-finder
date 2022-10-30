@@ -99,3 +99,7 @@ The output .tsv contains the following columns:
         <td>total number of reads overlapping the c.840 position in SMN1 plus SMN2</td>  
     </tr>
 </table>
+
+### Details
+
+<img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
