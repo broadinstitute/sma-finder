@@ -12,12 +12,14 @@ python3 -m pip install sma-finder
 ```
 
 
-### Usage
+### Example
 
-Example command and output:
+Example command:
 ```
-/$ sma_finder --verbose --genome-version 38 --reference-fasta /ref/hg38.fa  sample1.cram
-
+sma_finder --verbose --genome-version 38 --reference-fasta /ref/hg38.fa  sample1.cram
+```
+Command output:
+```
 Input args:
     --reference-fasta: /ref/hg38.fa
     --genome-version: 38
@@ -35,10 +37,12 @@ Output row #1:
 Wrote 1 rows to sample1.sma_finder_results.tsv        
 ```
 
-Full usage help text:
+### Usage
+
+Usage help text:
 ```
 
-/$ sma_finder --help
+sma_finder --help
 
 usage: sma_finder [-h] -R REFERENCE_FASTA -g {37,38,T2T} [-o OUTPUT_TSV]
                      [-v]
@@ -63,11 +67,35 @@ optional arguments:
 ### Output Columns
 
 The output .tsv contains the following columns:
-```
-filename_prefix          =  the CRAM or BAM filename prefix 
-file_type                =  "cram" or "bam"
-sample_id                =  sample id from the CRAM or BAM file header (parsed from the read group metadata)  
-sma_status               =  possible values are:   "has SMA",  "does not have SMA",  or "not enough coverage at SMN c.840 position"
-confidence_score         =  PHRED-scaled integer confidence score that the sma_status is correct. This is similar to the PL field in GATK HaplotypeCaller genotypes.
-c840_reads_with_smn1_base_C     = number of reads that have a 'C' at the c.840 position in SMN1 or SMN2  
-c840_total_reads    = total number of reads overlapping the c.840 position in SMN1 plus SMN2  
+
+<table>
+    <tr>
+        <td><b>filename_prefix</b></td>
+        <td>CRAM or BAM filename prefix</td>
+    </tr>
+    <tr>
+        <td><b>file_type</b></td>
+        <td><i>"cram"</i> or <i>"bam"</i></td>
+    </tr>
+    <tr>
+        <td><b>sample_id</b></td>
+        <td>sample id from the CRAM or BAM file header (parsed from the read group metadata)</td>
+    </tr>
+    <tr>
+        <td><b>sma_status</b></td>
+        <td>possible values are:<br> 
+            <i>"has SMA"</i><br>
+            <i>"does not have SMA"</i><br>
+            <i>"not enough coverage at SMN c.840 position"</i><br>
+        </td>
+    <tr>
+        <td><b>confidence_score</b></td>
+        <td>PHRED-scaled integer confidence score for whether sma_status is correct. This is similar to the PL field in GATK HaplotypeCaller genotypes.</td>
+    <tr>
+        <td><b>c840_reads_with_smn1_base_C</b></td>
+        <td>number of reads that have a 'C' nucleotide at the c.840 position in SMN1 plus SMN2</td> 
+    <tr>
+        <td><b>c840_total_reads</b></td>
+        <td>total number of reads overlapping the c.840 position in SMN1 plus SMN2</td>  
+    </tr>
+</table>
