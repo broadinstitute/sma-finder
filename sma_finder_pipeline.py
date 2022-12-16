@@ -212,7 +212,7 @@ def main():
             output_dir=os.path.join(args.output_dir, row_genome_version, row_sample_type),
             delocalize_by=Delocalize.COPY,
         )
-        s1.switch_gcloud_auth_to_user_account()
+        #s1.switch_gcloud_auth_to_user_account()
         s1.command("set -euxo pipefail")
 
         reference_fasta_input, reference_fasta_fai_input = s1.inputs(
@@ -221,8 +221,8 @@ def main():
             localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
 
         # process input files
-        cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
-        crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE_VIA_TEMP_BUCKET)
+        cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
+        crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
 
         s1.command(f"ls -lh {cram_or_bam_input}")
         s1.command("cd /io/")
