@@ -236,7 +236,7 @@ def main():
                 f"SMA pipeline: {row_sample_id}",
                 arg_suffix="step1",
                 image=DOCKER_IMAGE,
-                cpu=2,
+                cpu=0.25,
                 memory="standard",
                 output_dir=output_dir,
                 delocalize_by=Delocalize.GSUTIL_COPY if args.localize_via_copy else Delocalize.COPY,
