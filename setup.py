@@ -34,6 +34,7 @@ setup(
             'sma_finder = sma_finder:main',
         ],
     },
+    packages=[],
     long_description_content_type="text/markdown",
     long_description=long_description,
     python_requires=">=3.7",
