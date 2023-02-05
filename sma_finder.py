@@ -15,14 +15,15 @@ import hashlib
 import math
 import os
 import pysam
-import pandas as pd
 import re
 from scipy.stats import binom
+import sys
 
 """Output column names that will be populated for each sample in the output table"""
 OUTPUT_COLUMNS = [
     "filename_prefix",
     "file_type",
+    "genome_version",
     "sample_id",
     "sma_status",
     "confidence_score",
@@ -45,7 +46,7 @@ at the c.840 positions in SMN1 and SMN2:
 SMN_C840_POSITION_1BASED = {
     "37": ("5", 70247773, "C", 69372353, "T"),
     "38": ("chr5", 70951946, "C", 70076526, "T"),
-    "T2T": ("5", 71408734, "C",  70810812, "T"),
+    "t2t":  ("5", 71408734, "C",  70810812, "T"),
 }
 
 """MAX_TOTAL_SMN_COPIES represents the largest number of total SMN copies we'd expect to see when an individual has only 
@@ -82,9 +83,13 @@ def parse_args():
     """Define and then parse command-line args"""
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-R", "--reference-fasta", required=True, help="Reference genome FASTA file path")
-    parser.add_argument("-g", "--genome-version", required=True, choices=sorted(SMN_C840_POSITION_1BASED.keys()),
-                        help="Reference genome version")
+    parser.add_argument("--hg37-reference-fasta", help="HG37 reference genome FASTA path. This should be specified if "
+                                                      "the input bam or cram is aligned to HG37.")
+    parser.add_argument("--hg38-reference-fasta", help="HG38 reference genome FASTA path. This should be specified if "
+                                                      "the input bam or cram is aligned to HG38.")
+    parser.add_argument("--t2t-reference-fasta", help="T2T reference genome FASTA path. This should be specified if "
+                                                     "the input bam or cram is aligned to the CHM13 "
+                                                     "telomere-to-telomere benchmark.")
     parser.add_argument("-o", "--output-tsv", help="Optional output tsv file path")
     parser.add_argument("-v", "--verbose", action="store_true", help="Whether to print extra details during the run")
     parser.add_argument("cram_or_bam_path", nargs="+", help="One or more CRAM or BAM file paths")
@@ -92,8 +97,18 @@ def parse_args():
     args = parser.parse_args()
 
     # make sure the input files exist
-    for path in [args.reference_fasta] + args.cram_or_bam_path:
-        if not os.path.isfile(path):
+    fasta_paths = {
+        "37": args.hg37_reference_fasta,
+        "38": args.hg38_reference_fasta,
+        "t2t": args.t2t_reference_fasta,
+    }
+    fasta_paths = {label: path for label, path in fasta_paths.items() if path}
+
+    if not fasta_paths:
+        parser.error(f"Reference gnome fasta path not specified")
+
+    for path in list(fasta_paths.values()) + args.cram_or_bam_path:
+        if not os.path.isfile(os.path.expanduser(path)):
             parser.error(f"File not found: {path}")
 
     # define the output_tsv if it wasn't specified
@@ -107,12 +122,14 @@ def parse_args():
 
     if args.verbose:
         print("Input args:")
-        print(f"    --reference-fasta: {os.path.abspath(args.reference_fasta)}")
-        print(f"    --genome-version: {args.genome_version}")
+        for label, path in fasta_paths.items():
+            label = f"hg{label}" if label != "t2t" else label
+            print(f"    --{label}-reference-fasta: {os.path.abspath(path)}")
         print(f"    --output-tsv: {os.path.abspath(args.output_tsv)}")
         print(f"    CRAMS or BAMS:", ", ".join(map(os.path.abspath, args.cram_or_bam_path)))
+        print("----")
 
-    return args
+    return args, fasta_paths
 
 
 def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
@@ -261,42 +278,68 @@ def call_sma_status(output_row):
 
 
 def main():
-    args = parse_args()
-
-    chrom, c840_position_in_smn1, smn1_base, c840_position_in_smn2, _ = SMN_C840_POSITION_1BASED[args.genome_version]
+    args, fasta_paths = parse_args()
 
     # process the input BAM or CRAM files
     output_rows = []
     for cram_or_bam_path in args.cram_or_bam_path:
-        output_row = {}
-        output_row["filename_prefix"], output_row["file_type"] = get_filename_prefix_and_file_type(cram_or_bam_path)
+        for genome_version, reference_fasta_path in fasta_paths.items():
+            chrom, c840_position_in_smn1, smn1_base, c840_position_in_smn2, _ = SMN_C840_POSITION_1BASED[genome_version]
 
-        with pysam.AlignmentFile(cram_or_bam_path, 'rc', reference_filename=args.reference_fasta) as alignment_file:
-            set_sample_id(alignment_file, output_row)
-            smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn1)
-            smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn2)
+            filename_prefix, file_type = get_filename_prefix_and_file_type(cram_or_bam_path)
 
-        output_row.update({
-            f"c840_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] + smn2_nucleotide_counts[smn1_base],
-            f"c840_total_reads": sum(smn1_nucleotide_counts.values()) + sum(smn2_nucleotide_counts.values()),
-        })
+            genome_version_label = f"hg{genome_version}" if genome_version != "t2t" else genome_version
+            output_row = {
+                "filename_prefix": filename_prefix,
+                "file_type": file_type,
+                "genome_version": genome_version_label,
+            }
 
-        call_sma_status(output_row)
+            try:
+                with pysam.AlignmentFile(
+                        cram_or_bam_path, 'rc', reference_filename=reference_fasta_path) as alignment_file:
+                    set_sample_id(alignment_file, output_row)
+                    smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn1)
+                    smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn2)
+            except ValueError as e:
+                print(f"ERROR: unable to get read counts from {cram_or_bam_path} for {genome_version_label}: {e}. "
+                      f"Skipping...")
+                continue
+            else:
+                if len(fasta_paths) > 1:
+                    print(f"Retrieved read counts from {cram_or_bam_path} for {genome_version_label}")
 
-        output_rows.append(output_row)
+            output_row.update({
+                f"c840_reads_with_smn1_base_{smn1_base}": smn1_nucleotide_counts[smn1_base] +
+                                                          smn2_nucleotide_counts[smn1_base],
+                f"c840_total_reads": sum(smn1_nucleotide_counts.values()) +
+                                     sum(smn2_nucleotide_counts.values()),
+            })
 
-    # write results to .tsv
-    df = pd.DataFrame(output_rows)
+            call_sma_status(output_row)
+
+            output_rows.append(output_row)
 
     if args.verbose:
-        for i, (_, row) in enumerate(df.iterrows()):
-            print("----")
-            print(f"Output row #{i+1}:")
-            for column in OUTPUT_COLUMNS:
-                print(f"        {column:35s} {row[column]}")
+        print("----")
 
-    df[OUTPUT_COLUMNS].to_csv(args.output_tsv, sep='\t', header=True, index=False)
+    # write results to .tsv
+    with open(args.output_tsv, "wt") as f:
+        f.write("\t".join(OUTPUT_COLUMNS) + "\n")
+
+        for i, row in enumerate(output_rows):
+            f.write("\t".join([str(row[c]) for c in OUTPUT_COLUMNS]) + "\n")
+
+            if args.verbose:
+                print(f"Output row #{i+1}:")
+                for column in OUTPUT_COLUMNS:
+                    print(f"        {column:35s} {row[column]}")
+
     print(f"Wrote {len(output_rows)} rows to {os.path.abspath(args.output_tsv)}")
+
+    if not output_rows:
+        print(f"ERROR: no output rows")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

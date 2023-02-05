@@ -3,12 +3,13 @@
 import hashlib
 import os
 import pandas as pd
+import subprocess
 import sys
 
 from sma_finder import SMN_C840_POSITION_1BASED
 from step_pipeline import pipeline, Backend, Localize, Delocalize, all_outputs_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:b9a635d0adce90a13fdbcdec4336dc2f124d50fe7c63074719379c8eb99a01f4"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:ecec8bb6ec5b2d0027599f5677fa93dc8acd3b4cb67d78a78237b1f911ea9688"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -46,7 +47,11 @@ def parse_args(batch_pipeline):
     group.add_argument("-t", "--sample-type", choices=sorted(VALID_SAMPLE_TYPES, reverse=True),
         help="If all samples have the same sample type and the input table doesn't have a 'sample_type' column, "
              "it can be specified using this arg instead.")
-
+    group.add_argument("--impute-genome-version-if-missing", action="store_true",
+        help="For samples where the genome version isn't specified in the genome_version column, attempt to parse it "
+             "out of the bam or cram header prior to running SMA Finder.")
+    group.add_argument("--localize-via-copy", action="store_true",
+        help="Localize read data via GSUTIL COPY rather than via CLOUDFUSE")
     group.add_argument("sample_table",
         help="Path of tab-delimited table containing sample ids along with their BAM or CRAM file paths "
                         "and other metadata. The table should contain at least the following columns: "
@@ -71,6 +76,7 @@ def parse_args(batch_pipeline):
               help="Optionally specify the name of input table column that contains the CRAM or BAM path")
     group.add("--crai-or-bai-path-column",
               help="Optionally specify the name of input table column that contains the CRAI or BAI path")
+
     args = batch_pipeline.parse_known_args()
 
     return args
@@ -122,44 +128,37 @@ def parse_sample_table(batch_pipeline):
     elif args.crai_or_bai_path_column not in df.columns:
         arg_parser.error(f"{args.sample_table} doesn't have a '{args.crai_or_bai_path_column}' column")
 
-    if args.genome_version_column not in df.columns:
-        if args.genome_version:
-            df.loc[:, args.genome_version_column] = args.genome_version
-        else:
-            arg_parser.error(f"{args.sample_table} does not have a '{args.genome_version_column}' column. If all "
-                             f"samples are aligned to the same reference genome, you can specify it using the "
-                             f"--genome-version arg.")
-
-    if args.sample_type_column not in df.columns:
-        if args.sample_type:
-            df.loc[:, args.sample_type_column] = args.sample_type
-        else:
-            arg_parser.error(f"{args.sample_table} does not have a '{args.sample_type_column}' column. If all samples "
-                             f"are of the same type, you can specify it using the --sample-type arg.")
-
     # filter table to rows that have CRAM or BAM paths
+    length_before = len(df)
     df = df[~df[args.cram_or_bam_path_column].isna() & ~df[args.crai_or_bai_path_column].isna()]
+    num_filtered = length_before - len(df)
+    if num_filtered > 0:
+        print(f"Filtered out {num_filtered} out of {length_before} ({100*num_filtered/length_before:0.1f}%) of rows "
+              f"where the cram or bam column or the crai or bai column were empty")
+
+    # drop duplicate rows
+    length_before = len(df)
     df = df.drop_duplicates(subset=[args.cram_or_bam_path_column, args.crai_or_bai_path_column])
+    num_filtered = length_before - len(df)
+    if num_filtered > 0:
+        print(f"Filtered out {num_filtered} out of {length_before} ({100*num_filtered/length_before:0.1f}%) rows "
+              f"because they had the same cram or bam path as previous rows (ie. were duplicates)")
     df = df.sort_values(args.sample_id_column)
 
-    # validate genome_version and sample_type columns
-    invalid_genome_versions = set(df[args.genome_version_column]) - VALID_GENOME_VERSIONS
-    if invalid_genome_versions:
-        print(f"WARNING: The '{args.genome_version_column}' column in {args.sample_table} has unexpected values in some rows: "
-              f"{invalid_genome_versions}. The only valid values are: " + ", ".join(sorted(VALID_GENOME_VERSIONS)) + ". ")
-        length_before = len(df)
-        df = df[~df[args.genome_version_column].isin(VALID_GENOME_VERSIONS)]
-        print(f"Filtered out {len(df)} out of {length_before} ({100*len(df)/length_before:0.1f}%) of rows due to an "
-              f"invalid '{args.genome_version_column}'")
-
-    invalid_sample_types = set(df[args.sample_type_column]) - VALID_SAMPLE_TYPES
-    if invalid_sample_types:
-        print(f"WARNING: The '{args.sample_type_column}' column in {args.sample_table} has unexpected values in some "
-              f"rows: {invalid_sample_types}. The only valid values are: " + ", ".join(sorted(VALID_SAMPLE_TYPES, reverse=True)) + ". ")
-        length_before = len(df)
-        df = df[~df[args.sample_type_column].isin(VALID_SAMPLE_TYPES)]
-        print(f"Filtered out {len(df)} out of {length_before} ({100*len(df)/length_before:0.1f}%) of rows due to an "
-              f"invalid '{args.sample_type_column}'")
+    # validate genome_version_column arg if specified
+    if args.genome_version_column:
+        if args.genome_version_column in df.columns:
+            invalid_genome_versions = set(df[args.genome_version_column]) - VALID_GENOME_VERSIONS
+            if invalid_genome_versions:
+                bad_genome_version_count = sum(~df[args.genome_version_column].isin(VALID_GENOME_VERSIONS))
+                print(f"WARNING: The '{args.genome_version_column}' column in {args.sample_table} contains unexpected "
+                      f"values: {invalid_genome_versions} in {bad_genome_version_count} out of {len(df)} rows. "
+                      f"The only allowed values are: " + ", ".join(sorted(VALID_GENOME_VERSIONS)) + ". The unexpected "
+                      "values will be cleared and those samples will be tested for both hg37 and hg38 coordinates")
+                #df.loc[~df[args.genome_version_column].isin(VALID_GENOME_VERSIONS) : args.genome_version_column] = ""
+        else:
+            print(f"WARNING: {args.genome_version_column} column not found in {args.sample_table}. "
+                  f"Will test each sample for both hg37 and hg38 coordinates.")
 
     # apply --sample-id and --num-samples-to-process args if they were specified
     if args.sample_id:
@@ -193,70 +192,118 @@ def main():
     if not args.force:
         bp.precache_file_paths(os.path.join(args.output_dir, "**", f"{OUTPUT_FILENAME_PREFIX}*"))
 
+    original_df = pd.read_table(args.sample_table, dtype=str)
+
     steps = []
     print(f"Processing {len(df)} samples")
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         row_sample_id = row[args.sample_id_column]
-        row_genome_version = row[args.genome_version_column]
-        row_sample_type = row[args.sample_type_column]
         row_cram_or_bam_path = row[args.cram_or_bam_path_column]
         row_crai_or_bai_path = row[args.crai_or_bai_path_column]
 
-        # step1: run sma_finder.py
-        s1 = bp.new_step(
-            f"SMA pipeline: {row_sample_id}",
-            arg_suffix="step1",
-            image=DOCKER_IMAGE,
-            cpu=0.25,
-            memory="standard",
-            output_dir=os.path.join(args.output_dir, row_genome_version, row_sample_type),
-            delocalize_by=Delocalize.COPY,
-        )
-        #s1.switch_gcloud_auth_to_user_account()
-        s1.command("set -euxo pipefail")
+        # decide which genome version(s) to use for this sample
+        row_genome_version = row.get(args.genome_version_column)
+        if row_genome_version not in VALID_GENOME_VERSIONS and args.impute_genome_version_if_missing:
+            if args.verbose:
+                print(f"Imputing genome version for {row_cram_or_bam_path}")
+            row_genome_version = get_genome_version_from_bam_or_cram_header(row_cram_or_bam_path, args.gcloud_project)
+            if not row_genome_version:
+                print(f"WARNING: unable to impute genome version for {row_cram_or_bam_path}. Skipping...")
+                continue
 
-        reference_fasta_input, reference_fasta_fai_input = s1.inputs(
-            REFERENCE_FASTA_PATH[row_genome_version],
-            REFERENCE_FASTA_FAI_PATH[row_genome_version],
-            localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
+            original_df.loc[idx, args.genome_version_column] = row_genome_version
+            original_df.to_csv(args.sample_table, index=False, header=True, sep="\t")
+            if args.verbose:
+                print(f"Saved {args.sample_table} with the imputed {row_genome_version} genome version for {row_cram_or_bam_path}")
 
-        # process input files
-        cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
-        crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
+        if row_genome_version not in VALID_GENOME_VERSIONS:
+            # try all the reference genome versions
+            print(f"Genome version not known for {row_sample_id} so will try reference genome versions:", ", ".join(REFERENCE_FASTA_PATH.keys()))
+            row_genome_versions = list(REFERENCE_FASTA_PATH.keys())
+        else:
+            row_genome_versions = [row_genome_version]
 
-        s1.command(f"ls -lh {cram_or_bam_input}")
-        s1.command("cd /io/")
+        # process this sample using the decided upon genome version(s)
+        for row_genome_version in row_genome_versions:
+            output_dir = os.path.join(args.output_dir, row_genome_version)
 
-        # create symlinks in the same directory to work around cases when they are in different directories in the cloud
-        s1.command(f"ln -s {cram_or_bam_input} /{cram_or_bam_input.filename}")
-        s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
+            row_sample_type = row.get(args.sample_type_column)
+            if row_sample_type:
+                output_dir = os.path.join(output_dir, row_sample_type)
 
-        # extract the regions of interest into a local bam file to avoid random access network requests downstream
-        smn_chrom, smn1_position, _, smn2_position, _ = SMN_C840_POSITION_1BASED[row_genome_version]
-        smn_interval_start = min(smn1_position, smn2_position) - SMN_REGION_PADDING
-        smn_interval_end = max(smn1_position, smn2_position) + SMN_REGION_PADDING
-        smn_region = f"{smn_chrom}:{smn_interval_start}-{smn_interval_end}"
+            # step1: run sma_finder.py
+            s1 = bp.new_step(
+                f"SMA pipeline: {row_sample_id}",
+                arg_suffix="step1",
+                image=DOCKER_IMAGE,
+                cpu=2,
+                memory="standard",
+                output_dir=output_dir,
+                delocalize_by=Delocalize.GSUTIL_COPY if args.localize_via_copy else Delocalize.COPY,
+            )
 
-        local_bam_path = f"{row_sample_id}.bam"
-        s1.command(f"samtools view -T {reference_fasta_input} -b /{cram_or_bam_input.filename} {smn_region} "
-                   f" | samtools sort > {local_bam_path}")
-        s1.command(f"samtools index {local_bam_path}")
+            if args.localize_via_copy:
+                s1.storage("75Gi")
+                s1.switch_gcloud_auth_to_user_account()
 
-        # run smn_finder.py
-        output_tsv_name = f"{OUTPUT_FILENAME_PREFIX}.{row_sample_id}.{row_sample_type}.tsv"
-        s1.command(
-            f"time python3 -u /sma_finder.py "
-            f"-R {reference_fasta_input} "
-            f"-g {row_genome_version} "
-            f"--output-tsv {output_tsv_name} "
-            f"--verbose "
-            f"{local_bam_path}"
-        )
-        s1.command("ls")
+            s1.command("set -euxo pipefail")
 
-        # delocalize the output tsv
-        s1.output(output_tsv_name, delocalize_by=Delocalize.COPY)
-        steps.append(s1)
+            reference_fasta_input, reference_fasta_fai_input = s1.inputs(
+                REFERENCE_FASTA_PATH[row_genome_version],
+                REFERENCE_FASTA_FAI_PATH[row_genome_version],
+                localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
+
+            # process input files
+            localize_by = Localize.GSUTIL_COPY if args.localize_via_copy else Localize.HAIL_BATCH_CLOUDFUSE
+
+            cram_or_bam_input = s1.input(row_cram_or_bam_path, localize_by=localize_by)
+            crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=localize_by)
+
+            s1.command(f"ls -lh {cram_or_bam_input}")
+            s1.command("cd /io/")
+
+            # create symlinks in the same directory to work around cases when they are in different directories in the cloud
+            s1.command(f"ln -s {cram_or_bam_input} /{cram_or_bam_input.filename}")
+            s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
+
+            # extract the regions of interest into a local bam file to avoid random access network requests downstream
+            smn_chrom, smn1_position, _, smn2_position, _ = SMN_C840_POSITION_1BASED[row_genome_version]
+            smn_interval_start = min(smn1_position, smn2_position) - SMN_REGION_PADDING
+            smn_interval_end = max(smn1_position, smn2_position) + SMN_REGION_PADDING
+            smn_region = f"{smn_chrom}:{smn_interval_start}-{smn_interval_end}"
+
+            local_bam_path = f"{row_sample_id}.bam"
+            s1.command(f"samtools view -T {reference_fasta_input} -b /{cram_or_bam_input.filename} {smn_region} "
+                       f" | samtools sort > {local_bam_path}")
+            s1.command(f"samtools index {local_bam_path}")
+
+            if len(row_genome_versions) > 1:
+                # allow sma_finder.py command to fail when there is more than one reference genome to try
+                s1.command("set +eo pipefail")
+
+            # run smn_finder.py
+            if row_genome_version.lower() != "t2t":
+                row_genome_version_label = f"hg{row_genome_version}"
+            else:
+                row_genome_version_label = row_genome_version
+
+            output_tsv_name = f"{OUTPUT_FILENAME_PREFIX}.{row_sample_id}" #.{row_genome_version_label}"
+            if row_sample_type:
+                output_tsv_name += f".{row_sample_type}"
+            output_tsv_name += ".tsv"
+
+            s1.command(
+                f"time python3 -u /sma_finder.py "
+                f"--{row_genome_version_label}-reference-fasta {reference_fasta_input} "
+                f"--output-tsv {output_tsv_name} "
+                f"--verbose "
+                f"{local_bam_path}"
+            )
+            s1.command("ls")
+
+            # delocalize the output tsv
+            s1.output(output_tsv_name)
+            steps.append(s1)
 
     # step2: combine tables from step1 into a single table
     s2 = bp.new_step(
@@ -264,7 +311,7 @@ def main():
         image=DOCKER_IMAGE,
         cpu=1,
         memory="standard",
-        output_dir=args.output_dir,
+        output_dir=output_dir,
         delocalize_by=Delocalize.COPY,
         arg_suffix="step2",
     )
@@ -272,8 +319,8 @@ def main():
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
     for i, step in enumerate(steps):
-        #if args.skip_step1 and not all_outputs_exist(step):
-        #    print(f"WARNING: skipping {step}")
+        #if not all_outputs_exist(step):
+        #    print(f"WARNING: skipping {step} step since its output(s) are missing")
         #    continue
         s2.depends_on(step)
         tsv_input = s2.use_previous_step_outputs_as_inputs(step, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
@@ -289,15 +336,33 @@ def main():
     bp.run()
 
     # download the output table from step2 and merge it with the input table given to this pipeline.
-    os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
+    os.system(f"gsutil -m cp {os.path.join(output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
-    result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.where(
-        result_df.sample_id.isin(set(df[args.sample_id_column])), result_df.filename)
+    result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.fillna(result_df.filename_prefix)
+    result_df = result_df.drop("filename_prefix", axis=1)
 
     df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
+    df = df.drop(["genome_version"], axis=1)
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata)} rows to {combined_output_tsv_filename}")
+
+
+def get_genome_version_from_bam_or_cram_header(bam_or_cram_path, gcloud_project=None):
+    gcloud_project_arg = f"-u {gcloud_project}" if gcloud_project else ""
+
+    # get genome version from file header
+    output = subprocess.check_output(
+        f"gsutil {gcloud_project_arg} cat %s | samtools view -H - | grep @SQ | head -n 3" % bam_or_cram_path, shell=True, encoding="UTF-8", stderr=subprocess.DEVNULL)
+    genome_version = None
+    if "AS:GRCh37" in output or "Homo_sapiens_assembly19.fasta" in output:
+        genome_version = "37"
+    elif "AS:GRCh38" in output or "Homo_sapiens_assembly38.fasta" in output:
+        genome_version = "38"
+    else:
+        print(f"WARNING: Unable to parse genome version from header lines in {bam_or_cram_path}: {output}")
+
+    return genome_version
 
 
 if __name__ == "__main__":
