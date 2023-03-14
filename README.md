@@ -88,6 +88,10 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
         <td><b>file_type</b></td>
         <td><i>"cram"</i> or <i>"bam"</i></td>
     </tr>
+        <tr>
+        <td><b>genome_version</b></td>
+        <td><i>"hg37"</i>, <i>"hg38"</i>, or <i>"t2t"</i></td>
+    </tr>
     <tr>
         <td><b>sample_id</b></td>
         <td>sample id from the CRAM or BAM file header (parsed from the read group metadata)</td>
