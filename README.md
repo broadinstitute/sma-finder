@@ -6,7 +6,8 @@ c.840 position in *SMN1* and *SMN2*, and then reports whether the input sample(s
 
 Running this tool on 13 positive controls and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
 
-*Limitations:* SMA Finder doesn't report SMA carrier status or *SMN2* copy number. Also, it does not detect the ~5% of cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. Finally, although SMA Finder may also work for RNA-seq, or long-read alignment data, we currently lack the positive controls needed to evaluate this. If you have such samples, or would like to collaborate in other ways, please contact weisburd at broadinstitute dot org.
+*Limitations:*  
+SMA Finder doesn't report SMA carrier status or *SMN2* copy number.  Also, it does not detect the ~5% of cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. 
 
 
 ### Install
