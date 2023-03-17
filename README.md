@@ -1,12 +1,13 @@
 ## SMA Finder  
 
-A tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data.
-It takes 1 or more alignment files (CRAM or BAM) as input and reports whether 
-the sample(s) have complete loss of functional *SMN1*.
+SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data.  
+It takes a reference sequence (FASTA) and 1 or more alignment files (CRAM or BAM) as input, evaluates reads that overlap the 
+c.840 position in *SMN1* and *SMN2*, and then reports whether the input sample(s) have complete loss of functional *SMN1*.
 
-Testing on 13 positive controls and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
+Running this tool on 13 positive controls and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
 
-*Limitations:* SMA Finder doesn't report SMA carrier status or *SMN2* copy number. Also, it does not detect the ~5% of cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. Finally, although SMA Finder may also work for RNA-seq, targeted sequencing, or long-read alignment files, we currently lack the positive controls needed to evaluate this. If you have such samples, or would like to collaborate in other ways, please contact weisburd at broadinstitute dot org.
+*Limitations:*  
+SMA Finder doesn't report SMA carrier status or *SMN2* copy number.  Also, it does not detect the ~5% of cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. 
 
 
 ### Install
@@ -19,19 +20,19 @@ python3 -m pip install sma-finder
 
 Example command:
 ```
-sma_finder --verbose --genome-version 38 --reference-fasta /ref/hg38.fa  sample1.cram
+sma_finder --verbose --hg38-reference-fasta /ref/hg38.fa  sample1.cram
 ```
 Command output:
 ```
 Input args:
-    --reference-fasta: /ref/hg38.fa
-    --genome-version: 38
+    --hg38-reference-fasta: /ref/hg38.fa
     --output-tsv: sample1.sma_finder_results.tsv
     CRAMS or BAMS: sample1.cram
 ----
 Output row #1:
         filename_prefix                     sample1
         file_type                           cram
+        genome_version                      hg38
         sample_id                           s1
         sma_status                          has SMA
         confidence_score                    168
@@ -47,8 +48,10 @@ Usage help text:
 ```
 sma_finder --help
 
-usage: sma_finder [-h] -R REFERENCE_FASTA -g {37,38,T2T} [-o OUTPUT_TSV]
-                     [-v]
+usage: sma_finder.py [-h] [--hg37-reference-fasta HG37_REFERENCE_FASTA]
+                     [--hg38-reference-fasta HG38_REFERENCE_FASTA]
+                     [--t2t-reference-fasta T2T_REFERENCE_FASTA]
+                     [-o OUTPUT_TSV] [-v]
                      cram_or_bam_path [cram_or_bam_path ...]
 
 positional arguments:
@@ -56,10 +59,16 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -R REFERENCE_FASTA, --reference-fasta REFERENCE_FASTA
-                        Reference genome FASTA file path
-  -g {37,38,T2T}, --genome-version {37,38,T2T}
-                        Reference genome version
+  --hg37-reference-fasta HG37_REFERENCE_FASTA
+                        HG37 reference genome FASTA path. This should be
+                        specified if the input bam or cram is aligned to HG37.
+  --hg38-reference-fasta HG38_REFERENCE_FASTA
+                        HG38 reference genome FASTA path. This should be
+                        specified if the input bam or cram is aligned to HG38.
+  --t2t-reference-fasta T2T_REFERENCE_FASTA
+                        T2T reference genome FASTA path. This should be
+                        specified if the input bam or cram is aligned to the
+                        CHM13 telomere-to-telomere benchmark.
   -o OUTPUT_TSV, --output-tsv OUTPUT_TSV
                         Optional output tsv file path
   -v, --verbose         Whether to print extra details during the run
@@ -79,6 +88,10 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
     <tr>
         <td><b>file_type</b></td>
         <td><i>"cram"</i> or <i>"bam"</i></td>
+    </tr>
+        <tr>
+        <td><b>genome_version</b></td>
+        <td><i>"hg37"</i>, <i>"hg38"</i>, or <i>"t2t"</i></td>
     </tr>
     <tr>
         <td><b>sample_id</b></td>
