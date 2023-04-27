@@ -311,7 +311,7 @@ def main():
         image=DOCKER_IMAGE,
         cpu=1,
         memory="standard",
-        output_dir=output_dir,
+        output_dir=args.output_dir,
         delocalize_by=Delocalize.COPY,
         arg_suffix="step2",
     )
@@ -319,9 +319,9 @@ def main():
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
     for i, step in enumerate(steps):
-        #if not all_outputs_exist(step):
-        #    print(f"WARNING: skipping {step} step since its output(s) are missing")
-        #    continue
+        if not all_outputs_exist(step):
+            print(f"WARNING: skipping {step} step since its output(s) are missing")
+            continue
         s2.depends_on(step)
         tsv_input = s2.use_previous_step_outputs_as_inputs(step, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
         if i == 0:
