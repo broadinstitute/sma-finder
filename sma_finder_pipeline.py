@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 from sma_finder import SMN_C840_POSITION_1BASED
-from step_pipeline import pipeline, Backend, Localize, Delocalize, all_outputs_exist
+from step_pipeline import pipeline, Backend, Localize, Delocalize, files_exist
 
 DOCKER_IMAGE = "weisburd/sma_finder@sha256:ecec8bb6ec5b2d0027599f5677fa93dc8acd3b4cb67d78a78237b1f911ea9688"
 
@@ -89,7 +89,6 @@ def parse_sample_table(batch_pipeline):
         2-tuple (pandas.DataFrame, args): The input table and command line args.
     """
     args = parse_args(batch_pipeline)
-
     df = pd.read_table(args.sample_table, dtype=str)
 
     # check table columns
@@ -179,6 +178,8 @@ def parse_sample_table(batch_pipeline):
 
 def main():
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
+    bp.get_config_arg_parser().add_argument("--skip-step2", action="store_true")
+    bp.get_config_arg_parser().add_argument("--force-step2", action="store_true")    
 
     df, args = parse_sample_table(bp)
 
@@ -194,7 +195,7 @@ def main():
 
     original_df = pd.read_table(args.sample_table, dtype=str)
 
-    steps = []
+    per_sample_output_table_paths = []
     print(f"Processing {len(df)} samples")
     for idx, row in df.iterrows():
         row_sample_id = row[args.sample_id_column]
@@ -234,6 +235,7 @@ def main():
             # step1: run sma_finder.py
             s1 = bp.new_step(
                 f"SMA pipeline: {row_sample_id}",
+                step_number=1,                
                 arg_suffix="step1",
                 image=DOCKER_IMAGE,
                 cpu=0.25,
@@ -303,30 +305,42 @@ def main():
 
             # delocalize the output tsv
             s1.output(output_tsv_name)
-            steps.append(s1)
+            per_sample_output_table_paths.append(os.path.join(output_dir, output_tsv_name))
 
+    bp.run()
+    
+    bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
+    bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
+    bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")    
+    args = parse_args(bp)
+    
+    bp.set_name(f"sma_finder: combine {len(df)} samples")
+    
     # step2: combine tables from step1 into a single table
     s2 = bp.new_step(
-        f"Combine {len(steps)} tables",
+        f"Combine {len(per_sample_output_table_paths)} tables",
         image=DOCKER_IMAGE,
         cpu=1,
         memory="standard",
         output_dir=args.output_dir,
+        localize_by=Localize.GSUTIL_COPY,
         delocalize_by=Delocalize.COPY,
+        step_number=2,
         arg_suffix="step2",
     )
+    s2.switch_gcloud_auth_to_user_account()    
     s2.command("set -euxo pipefail")
 
     combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
-    for i, step in enumerate(steps):
-        if not all_outputs_exist(step):
-            print(f"WARNING: skipping {step} step since its output(s) are missing")
+    for i, input_tsv_path in enumerate(set(per_sample_output_table_paths)):
+        if not files_exist([input_tsv_path]):
+            print(f"WARNING: skipping {input_tsv_path} since it doesn't exist")
             continue
-        s2.depends_on(step)
-        tsv_input = s2.use_previous_step_outputs_as_inputs(step, localize_by=Localize.HAIL_BATCH_CLOUDFUSE)
+
+        input_tsv = s2.input(input_tsv_path)
         if i == 0:
-            s2.command(f"head -n 1 {tsv_input} > {combined_output_tsv_filename}")
-        s2.command(f"tail -n +2 {tsv_input} >> {combined_output_tsv_filename}")
+            s2.command(f"head -n 1 {input_tsv} > {combined_output_tsv_filename}")
+        s2.command(f"tail -n +2 {input_tsv} >> {combined_output_tsv_filename}")
 
     s2.command(f"gzip {combined_output_tsv_filename}")
     combined_output_tsv_filename = f"{combined_output_tsv_filename}.gz"
@@ -336,7 +350,7 @@ def main():
     bp.run()
 
     # download the output table from step2 and merge it with the input table given to this pipeline.
-    os.system(f"gsutil -m cp {os.path.join(output_dir, combined_output_tsv_filename)} .")
+    os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
     result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.fillna(result_df.filename_prefix)
     result_df = result_df.drop("filename_prefix", axis=1)
