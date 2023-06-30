@@ -312,7 +312,7 @@ def main():
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
     bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")    
-    args = parse_args(bp)
+    args2 = parse_args(bp)
     
     bp.set_name(f"sma_finder: combine {len(df)} samples")
     
@@ -323,7 +323,7 @@ def main():
         cpu=1,
         memory="standard",
         output_dir=args.output_dir,
-        localize_by=Localize.GSUTIL_COPY,
+        localize_by=Localize.COPY, #HAIL_BATCH_CLOUDFUSE, #GSUTIL_COPY,
         delocalize_by=Delocalize.COPY,
         step_number=2,
         arg_suffix="step2",
@@ -355,7 +355,7 @@ def main():
     result_df.loc[:, "sample_id_or_filename"] = result_df.sample_id.fillna(result_df.filename_prefix)
     result_df = result_df.drop("filename_prefix", axis=1)
 
-    df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
+    #df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
     df = df.drop(["genome_version"], axis=1)
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
