@@ -186,7 +186,7 @@ def main():
     bp.set_name(f"sma_finder: {len(df)} samples")
 
     # compute a hash of the sample ids being processed
-    analysis_id = ", ".join(df[args.sample_id_column])
+    analysis_id = ", ".join(sorted(df[args.sample_id_column]))
     analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
     analysis_id = analysis_id[:10]  # shorten
 
@@ -262,10 +262,11 @@ def main():
             crai_or_bai_input = s1.input(row_crai_or_bai_path, localize_by=localize_by)
 
             s1.command(f"ls -lh {cram_or_bam_input}")
-            s1.command("cd /io/")
+            #s1.command("cd /io/")
 
             # create symlinks in the same directory to work around cases when they are in different directories in the cloud
             s1.command(f"ln -s {cram_or_bam_input} /{cram_or_bam_input.filename}")
+            #s1.command(f"samtools index {cram_or_bam_input.filename} ")            
             s1.command(f"ln -s {crai_or_bai_input} /{crai_or_bai_input.filename}")
 
             # extract the regions of interest into a local bam file to avoid random access network requests downstream
@@ -323,7 +324,7 @@ def main():
         cpu=1,
         memory="standard",
         output_dir=args.output_dir,
-        localize_by=Localize.COPY, #HAIL_BATCH_CLOUDFUSE, #GSUTIL_COPY,
+        localize_by=Localize.HAIL_BATCH_CLOUDFUSE, #GSUTIL_COPY,
         delocalize_by=Delocalize.COPY,
         step_number=2,
         arg_suffix="step2",
