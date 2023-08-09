@@ -1,5 +1,7 @@
 FROM python:3.9-slim-bullseye
 
+RUN apt-get purge ca-certificates-java
+
 # install core tools and libraries
 RUN apt update && apt-get install -y --no-install-recommends \
     autoconf \
@@ -12,6 +14,7 @@ RUN apt update && apt-get install -y --no-install-recommends \
     gcc \
     git \
     make \
+    openjdk-17-jre \
     pkg-config \
 	python3-pip \
     libbz2-dev \
@@ -50,13 +53,20 @@ RUN wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSI
 	&& make clean
 
 # install gcloud
-ENV GCLOUD_SDK_VERISON="392.0.0"
+ENV GCLOUD_SDK_VERISON="441.0.0"
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
 ENV PATH=/google-cloud-sdk/bin:$PATH
+
+# install GATK in order to use PrintReads to localize a subset of the CRAM file
+ENV GATK_VERSION="4.4.0.0"
+RUN wget https://github.com/broadinstitute/gatk/releases/download/${GATK_VERSION}/gatk-${GATK_VERSION}.zip \
+	&& unzip gatk-${GATK_VERSION}.zip \
+	&& rm gatk-${GATK_VERSION}.zip \
+	&& ln -s /gatk-${GATK_VERSION}/gatk /usr/local/bin/gatk
 
 # install sma_finder.py
 COPY requirements.txt /
