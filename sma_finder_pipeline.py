@@ -394,7 +394,7 @@ def main():
     
     # step2: combine tables from step1 into a single table
     s2 = bp.new_step(
-        f"Combine {len(df)} tables",
+        f"Combine {len(df):,d} tables",
         image=DOCKER_IMAGE,
         cpu=1,
         memory="standard",
