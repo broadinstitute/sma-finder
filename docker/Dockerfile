@@ -73,6 +73,8 @@ COPY requirements.txt /
 RUN python3 -m pip install --upgrade -r requirements.txt
 
 COPY sma_finder.py /
+COPY plot_SMN1_SMN2_scatter.py /
+COPY check_for_new_cases.py /
 
 ENTRYPOINT /bin/bash
 
