@@ -27,10 +27,10 @@ PALETTE = {
     POSITIVE_CONTROL_LABEL: "tab:red",
 }
 
-
 C840_SMN1_READS_COLUMN = "c840_reads_with_smn1_base_C"
 C840_TOTAL_READS_COLUMN = "c840_total_reads"
 SMA_STATUS_COLUMN = "sma_status"
+
 
 def compute_decision_boundary_slope_and_intercept(p, p_error, confidence_threshold):
     """Compute the slope of the decision boundary line when calling SMN1 copy number (0 or greater than 0)
@@ -155,8 +155,7 @@ def main():
                    "This argument can be specified more than once")
     p.add_argument("-L", "--sample-ids-to-label-path", help="Path of text file containing a list of sample ids that "
                    "should be labeled in the plot")
-    p.add_argument("--sample-id-column", default="sample_id", help="Name of the input table column that contains the "
-                   "sample ids")
+    p.add_argument("--sample-id-column", default="sample_id", help="Name of the sample id column in the input table")
     p.add_argument("--affected-status-column", default="affected", help="Name of the input table column that contains "
                    "the affected status of each sample")
     p.add_argument("--not-affected-label", default="Not Affected", help="Value in the affected status column that "
