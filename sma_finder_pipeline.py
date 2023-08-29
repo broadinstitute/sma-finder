@@ -23,7 +23,8 @@ REFERENCE_FASTA_FAI_PATH = {
     #"T2T": None,
 }
 
-VALID_GENOME_VERSIONS = set(REFERENCE_FASTA_PATH.keys())
+
+VALID_GENOME_VERSIONS = set(REFERENCE_FASTA_PATH.keys()) | {"GRCh37", "GRCh38", "hg19", "hg37", "hg38"}
 
 SMN_REGION_PADDING = 1000  # base-pairs
 
@@ -144,6 +145,12 @@ def parse_sample_table(batch_pipeline):
     # validate genome_version_column arg if specified
     if args.genome_version_column:
         if args.genome_version_column in df.columns:
+            df[args.genome_version_column] = df[args.genome_version_column].replace({
+                "GRCh38": "38",
+                "hg38": "38",
+                "GRCh37": "37",
+                "hg19": "37",
+            })
             invalid_genome_versions = set(df[args.genome_version_column]) - VALID_GENOME_VERSIONS
             if invalid_genome_versions:
                 bad_genome_version_count = sum(~df[args.genome_version_column].isin(VALID_GENOME_VERSIONS))
@@ -424,7 +431,7 @@ def main():
     # download the output table from step2 and merge it with the input table given to this pipeline.
     os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
-    result_df.loc[:, "sample_id_or_filename"] = result_df[args.sample_id_column].fillna(result_df.filename_prefix)
+    result_df.loc[:, "sample_id_or_filename"] = result_df["sample_id"].fillna(result_df.filename_prefix)
     result_df = result_df.drop("filename_prefix", axis=1)
 
     #df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
