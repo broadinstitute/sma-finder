@@ -369,7 +369,8 @@ def main():
                     f"{local_bam_path}' >> command.sh"
                 )
 
-                s1.command("./command.sh || true")
+                #s1.command("./command.sh || true")
+                s1.command("./command.sh")
                 s1.command("rm command.sh")
 
                 # delocalize the output tsv
@@ -435,7 +436,8 @@ def main():
     result_df = result_df.drop("filename_prefix", axis=1)
 
     #df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
-    df = df.drop(["genome_version"], axis=1)
+    if args.genome_version_column in df.columns:
+        df = df.drop([args.genome_version_column], axis=1)
     df_with_metadata = pd.merge(result_df, df, how="left", left_on="sample_id_or_filename", right_on=args.sample_id_column)
     df_with_metadata.to_csv(combined_output_tsv_filename, sep="\t", header=True, index=False)
     print(f"Wrote {len(df_with_metadata):,d} rows to {combined_output_tsv_filename}")
