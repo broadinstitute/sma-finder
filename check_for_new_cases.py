@@ -29,7 +29,7 @@ print(f"Parsed {len(df):,d} rows from {args.results_table}")
 def process_sample_id(s):
     return s.replace("-", "_").replace(" ", "_").replace(".", "_")
 
-df["processed_sample_id"] = df["filename_prefix"].apply(process_sample_id)
+df["processed_sample_id"] = df[args.metadata_sample_id_column].apply(process_sample_id)
 df.set_index("processed_sample_id", inplace=True)
 
 # join with metadata table if one was specified
@@ -112,14 +112,14 @@ if len(df) > 0:
     for i, (_, row) in enumerate(df.iterrows()):
         for c in extra_columns_to_print:
             column_widths[c] = max(column_widths.get(c, 0), len(str(row.get(c, ""))))
-    header_line = f"{'#':<2s}  {'filename_prefix':20s}  {'genome_version':20s}  "
+    header_line = f"{'#':<2s}  {args.metadata_sample_id_column:20s}  {'genome_version':20s}  "
     header_line += f"read support" + " "*15
     for c in extra_columns_to_print:
         header_line += f"{c:>{column_widths[c] + 5}s}"
 
     print(header_line)
     for i, (_, row) in enumerate(df.iterrows()):
-        print_line = f"#{i+1:<2d}  {row['filename_prefix']:20s}  {row['genome_version']:20s}  "
+        print_line = f"#{i+1:<2d}  {row[args.metadata_sample_id_column]:20s}  {row['genome_version']:20s}  "
         print_line += f"{int(row['c840_reads_with_smn1_base_C']):5,d} out of {int(row['c840_total_reads']):5,d} reads"
         row_dict = row.to_dict()
         for c in extra_columns_to_print:
