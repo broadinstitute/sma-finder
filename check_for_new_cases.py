@@ -100,6 +100,7 @@ print(f"Overall, {len(sample_ids_has_sma):,d} samples have SMA in this callset: 
 
 df = df[df.sma_status == "has SMA"]
 df = df[~df.index.isin(known_cases)]
+df = df.drop_duplicates()
 
 # print stats on new cases
 if len(df) > 0:
