@@ -372,6 +372,10 @@ def main():
                     f"--verbose "
                     f"{local_bam_path}' >> command.sh"
                 )
+                s1.command(f"echo 'rm {local_bam_path} {local_bam_path}.bai' >> command.sh")
+                s1.command(f"echo 'gsutil -u {args.gcloud_project} -m cp "
+                           f"{os.path.basename(row_output_tsv_path)} "
+                           f"{row_output_tsv_path}' >> command.sh")
 
                 if args.allow_sample_failures:
                     s1.command("./command.sh || true")
@@ -380,10 +384,6 @@ def main():
 
                 s1.command("rm command.sh")
 
-                # delocalize the output tsv
-                s1.output(os.path.basename(row_output_tsv_path), row_output_tsv_path)
-
-                s1.command(f"rm {local_bam_path} {local_bam_path}.bai")
                 if args.localize_via == "copy":
                     # delete the local bam file
                     s1.command(f"rm {cram_or_bam_input.local_path} {crai_or_bai_input.local_path}")
