@@ -54,6 +54,9 @@ def parse_args(batch_pipeline):
              "cost-effective in different contexts")
     group.add_argument("--samples-per-job", type=int, default=1, help="Number of samples to process per Hail Batch "
         "Job. This is useful for reducing overhead involved in initializing each Job and localizing reference data.")
+    group.add_argument("--allow-sample-failures", action="store_true",
+        help="When processing more than 1 sample per job, continue processing subsequent samples within a given job "
+             "even if one or more samples fail.")
 
     group.add_argument("sample_table",
         help="Path of tab-delimited table containing sample ids along with their BAM or CRAM file paths "
@@ -370,8 +373,11 @@ def main():
                     f"{local_bam_path}' >> command.sh"
                 )
 
-                #s1.command("./command.sh || true")
-                s1.command("./command.sh")
+                if args.allow_sample_failures:
+                    s1.command("./command.sh || true")
+                else:
+                    s1.command("./command.sh")
+
                 s1.command("rm command.sh")
 
                 # delocalize the output tsv
