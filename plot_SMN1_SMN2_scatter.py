@@ -172,7 +172,11 @@ def main():
         if path and not os.path.isfile(path):
             p.error(f"File not found: {args.positive_control_sample_ids_path}")
 
-    df = pd.read_table(args.sma_finder_combined_results_path)
+    df = pd.read_table(args.sma_finder_combined_results_path, dtype={
+        "confidence_score": float,
+        "c840_reads_with_smn1_base_C": float,
+        "c840_total_reads": float,
+    })
 
     for column_name in args.sample_id_column, args.affected_status_column, C840_SMN1_READS_COLUMN, C840_TOTAL_READS_COLUMN:
         if column_name not in df.columns:
