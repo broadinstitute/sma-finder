@@ -15,12 +15,12 @@ DOCKER_IMAGE = "weisburd/sma_finder@sha256:101b94dc99ab0b17d18cd62db7cceb63c3e00
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
     "38": "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta",
-    #"T2T": None,
+    #"t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta",
 }
 REFERENCE_FASTA_FAI_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta.fai",
     "38": "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta.fai",
-    #"T2T": None,
+    #"t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta.fai",
 }
 
 
@@ -194,6 +194,8 @@ def main():
     bp.get_config_arg_parser().add_argument("--force-step2", action="store_true")    
 
     df, args = parse_sample_table(bp)
+
+    before = len(df)
     if len(df) == 0:
         bp.get_config_arg_parser().error(f"{args.sample_table} doesn't contain any rows")
 
@@ -205,6 +207,10 @@ def main():
 
     if args.num_samples_to_process:
         df = df.iloc[:args.num_samples_to_process]
+
+    if len(df) != before:
+        print(f"Kept {len(df):,d} out of {before:,d} rows after applying --offset {args.offset} and "
+              f"--num-samples-to-process {args.num_samples_to_process} args")
 
     bp.set_name(f"sma_finder: {len(df):,d} samples")
 
@@ -222,19 +228,15 @@ def main():
         print(f"Found {len(existing_output_tsv_paths):,d} existing output tsv files in {args.output_dir}")
         before = len(df)
         df = df[~df["output_tsv"].isin(existing_output_tsv_paths)]
-        print(f"Will skip {before - len(df):,d} samples that already have output tsv files")
-    else:
-        existing_output_tsv_paths = set()
-
+        print(f"Will skip {before - len(df):,d} samples that already have output tsv files, leaving {len(df):,d} samples")
 
     # compute a hash of the sample ids being processed
-    analysis_id = ", ".join(sorted(df[args.sample_id_column]))
-    analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
-    analysis_id = analysis_id[:10]  # shorten
+    #analysis_id = ", ".join(sorted(df[args.sample_id_column]))
+    #analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
+    #analysis_id = analysis_id[:10]  # shorten
 
     if args.genome_version_column in df.columns:
         df = df.sort_values(args.genome_version_column)
-
 
     if args.samples_per_job > 1:
         print(f"Processing {len(df):,d} samples in {int(len(df)/args.samples_per_job + 0.99):,d} batches of "
@@ -304,7 +306,6 @@ def main():
                 row_genome_versions = list(REFERENCE_FASTA_PATH.keys())
             else:
                 row_genome_versions = [row_genome_version]
-
 
             if len(row_genome_versions) > 1:
                 # allow sma_finder.py command to fail when there is more than one reference genome to try
@@ -389,6 +390,8 @@ def main():
         s["path"] for s in bp.precache_file_paths(os.path.join(args.output_dir, "**", f"{OUTPUT_FILENAME_PREFIX}*tsv"))
     }
     print(f"Found {len(existing_output_tsv_paths):,d} output tsv files in {args.output_dir}")
+
+    return
 
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
