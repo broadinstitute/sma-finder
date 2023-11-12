@@ -10,5 +10,5 @@ push:
 
 update_sha:
 	docker pull $(TAG) 2>&1 | grep Digest | cut -c 9- > sha256.txt
-	cat sha256.txt && [ ! -z "`cat sha256.txt`" ] && sed -i.bak "s/@sha256:[^\"]*/"@`cat sha256.txt`"/"  ../*.py
-	rm ../*.py.bak
+	cat sha256.txt && [ ! -z "`cat sha256.txt`" ] && sed -i.bak "s/@sha256:[^\"]*/"@`cat sha256.txt`"/"  ../*.py ../*.wdl
+	rm ../*.py.bak ../*.wdl.bak
