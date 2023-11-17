@@ -15,12 +15,12 @@ DOCKER_IMAGE = "weisburd/sma_finder@sha256:101b94dc99ab0b17d18cd62db7cceb63c3e00
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
     "38": "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta",
-    #"t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta",
+    "t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta",
 }
 REFERENCE_FASTA_FAI_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta.fai",
     "38": "gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta.fai",
-    #"t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta.fai",
+    "t2t": "gs://gcp-public-data--broad-references/t2t/v2/chm13v2.0.maskedY.fasta.fai",
 }
 
 
@@ -234,9 +234,9 @@ def main():
         print(f"Will skip {before - len(df):,d} samples that already have output tsv files, leaving {len(df):,d} samples")
 
     # compute a hash of the sample ids being processed
-    #analysis_id = ", ".join(sorted(df[args.sample_id_column]))
-    #analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
-    #analysis_id = analysis_id[:10]  # shorten
+    analysis_id = ", ".join(sorted(df[args.sample_id_column]))
+    analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
+    analysis_id = analysis_id[:10]  # shorten
 
     if args.genome_version_column in df.columns:
         df = df.sort_values(args.genome_version_column)
@@ -397,8 +397,6 @@ def main():
     }
     print(f"Found {len(existing_output_tsv_paths):,d} output tsv files in {args.output_dir}")
 
-    return
-
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
     bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")    
@@ -463,6 +461,8 @@ def get_genome_version_from_bam_or_cram_header(bam_or_cram_path, gcloud_project=
         genome_version = "37"
     elif "AS:GRCh38" in output or "Homo_sapiens_assembly38.fasta" in output:
         genome_version = "38"
+    elif "t2t-chm13" in output.lower():
+        genome_version = "t2t"
     else:
         print(f"WARNING: Unable to parse genome version from header lines in {bam_or_cram_path}: {output}")
 
