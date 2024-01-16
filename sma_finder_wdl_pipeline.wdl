@@ -55,7 +55,7 @@ task SMAFinder {
     }
 
      runtime {
-         docker: "weisburd/sma_finder@sha256:101b94dc99ab0b17d18cd62db7cceb63c3e00f2561ae5459d537a31dacec0ceb"
+         docker: "weisburd/sma_finder@sha256:4a9bed25eb6bd412a71f5d7a1f2cf60601f317686fefc9ce2dcbbd5cf67cf27f"
          cpu: 1
          preemptible: 1
          disks: "local-disk ${disk_size} HDD"

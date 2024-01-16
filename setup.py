@@ -23,7 +23,7 @@ with open("requirements.txt", "rt") as f:
 
 setup(
     name='sma_finder',
-    version="1.3",
+    version="1.4",
     description="A tool for diagnosing spinal muscular atrophy (SMA) using exome or genome sequencing data",
     install_requires=requirements,
     cmdclass={
@@ -32,6 +32,7 @@ setup(
     entry_points = {
         'console_scripts': [
             'sma_finder = sma_finder:main',
+            'plot_SMN1_SMN2_scatter = plot_SMN1_SMN2_scatter:main',
         ],
     },
     packages=[],
