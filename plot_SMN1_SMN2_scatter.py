@@ -14,7 +14,6 @@ np.random.seed(1)
 P_SMN1 = 0.2       # based on an individual having 1 copy of SMN1 and 4 copies of SMN2
 P_ERROR = 0.001/3  # Q30
 MIN_COVERAGE_THRESHOLD = 14
-MAX_SMN1_READS_THRESHOLD = 2
 PHRED_SCALE_CONFIDENCE_THRESHOLD = 10
 
 UNKNOWN_SAMPLES_LABEL = "Rare Disease Cases"
@@ -72,10 +71,18 @@ def plot_figure(df_all, title=None):
     #decision_boundary2_y[decision_boundary2_y < MIN_COVERAGE_THRESHOLD - 0.5] = MIN_COVERAGE_THRESHOLD - 0.5
 
     # initialize the figure
-    fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.5))
-    plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05, hspace=0.3)
-    fig.set_tight_layout(True)
-    if title: fig.suptitle(title, fontsize=17)
+    g = sns.JointGrid()
+    fig = g.fig
+    fig.set_size_inches(9, 9)
+    #fig.set_tight_layout(True)
+    fig.set_constrained_layout(True)
+    fig.subplots_adjust(hspace=0.3)
+    ax = g.ax_joint
+
+    #fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.5))
+    #plt.subplots_adjust(left=0.05, right=0.85, top=0.95, bottom=0.05, hspace=0.3)
+    #fig.set_tight_layout(True)
+    if title: ax.text(-0.01, 1.17, title, transform=ax.transAxes, size=17) #fig.suptitle(title, fontsize=17)
 
     x_axis_label = "# of reads that contain a 'C' at the c.840 position"
     y_axis_label = "Total # of reads at the c.840 position"
@@ -87,6 +94,8 @@ def plot_figure(df_all, title=None):
         C840_TOTAL_READS_COLUMN
     ] = df_all[C840_TOTAL_READS_COLUMN] + jitter
 
+    ax.add_patch(plt.Rectangle((-0.5, -0.5), MIN_COVERAGE_THRESHOLD, MIN_COVERAGE_THRESHOLD, facecolor="#F3F3F3", fill=True))
+
     # render data points
     sns.scatterplot(
         ax=ax,
@@ -96,6 +105,42 @@ def plot_figure(df_all, title=None):
         hue=SMA_STATUS_COLUMN,
         palette=PALETTE,
         s=15)
+
+    left = 0.12
+    bottom = 0.12
+    right = 0.85
+    top = 0.83
+    width = right - left
+    height = top - bottom
+    g.fig.axes[0].set_position([left, bottom, width, height])
+    g.fig.axes[1].set_position([left, top, width, 0.1])
+    g.fig.axes[2].set_position([right, bottom, 0.1, height])
+
+    # draw marginal histograms
+    df_without_positive = df_all[df_all[SMA_STATUS_COLUMN] != POSITIVE_CONTROL_LABEL]
+
+    sns.histplot(df_without_positive,
+        x=C840_SMN1_READS_COLUMN,
+        hue=SMA_STATUS_COLUMN,
+        palette=PALETTE,
+        bins=90,
+        fill=False,
+        kde=True,
+        ax=g.ax_marg_x)
+
+    if g.ax_marg_x.get_legend(): g.ax_marg_x.get_legend().remove()
+
+    sns.histplot(df_without_positive,
+        y=C840_TOTAL_READS_COLUMN,
+        hue=SMA_STATUS_COLUMN,
+        bins=90,
+        #element="step",
+        fill=False,
+        kde=True,
+        palette=PALETTE,
+        ax=g.ax_marg_y)
+
+    if g.ax_marg_y.get_legend(): g.ax_marg_y.legend_.remove()
 
     # text labels for points that should be labeled
     df_samples_to_label = df_all[df_all["show_label"]]
@@ -138,10 +183,11 @@ def plot_figure(df_all, title=None):
         color='black',
         label="Minimum Read\nCoverage Threshold")
 
+
     # legend
     ax.legend(
-        loc='upper left',
-        bbox_to_anchor=[1.05, 1],
+        loc='lower right',
+        bbox_to_anchor=[0.95, 0],
         frameon=False)
 
 
@@ -223,7 +269,7 @@ def main():
         df.loc[df["sample_id"].isin(positive_controls), SMA_STATUS_COLUMN] = POSITIVE_CONTROL_LABEL
     df["show_label"] = df["sample_id"].isin(sample_ids_to_label)
 
-    plot_figure(df, args.title)
+    plot_figure(df, title=args.title)
 
     if not args.output_prefix:
         args.output_prefix = re.sub(".tsv(.gz)?$", "", os.path.basename(args.sma_finder_combined_results_path))
