@@ -60,14 +60,16 @@ def plot_figure(df_all, title=None):
     # compute decision boundary x,y points.
     decision_boundary_x = np.linspace(0, 1000, 100000)
 
-    # decision boundary 1 = without a confidence threshold (shown as a solid line)
+    # Decision boundary 1 = without a confidence threshold (shown as a solid line)
+    # Decision boundary 2 = with a confidence threshold (shown as a dashed line)
     slope, intercept = compute_decision_boundary_slope_and_intercept(P_SMN1, P_ERROR, 0)
+    slope2, intercept2 = compute_decision_boundary_slope_and_intercept(P_SMN1, P_ERROR, PHRED_SCALE_CONFIDENCE_THRESHOLD)
+
     decision_boundary_y = slope * decision_boundary_x + intercept
     decision_boundary_y[decision_boundary_y < MIN_COVERAGE_THRESHOLD - 0.5] = MIN_COVERAGE_THRESHOLD - 0.5
 
     # decision boundary 2 = with a confidence threshold (shown as a dashed line)
-    #slope2, intercept2 = compute_decision_boundary_slope_and_intercept(P_SMN1, P_ERROR, PHRED_SCALE_CONFIDENCE_THRESHOLD)
-    #decision_boundary2_y = slope2 * decision_boundary_x + intercept2
+    decision_boundary2_y = slope2 * decision_boundary_x + intercept2
     #decision_boundary2_y[decision_boundary2_y < MIN_COVERAGE_THRESHOLD - 0.5] = MIN_COVERAGE_THRESHOLD - 0.5
 
     # initialize the figure
@@ -76,7 +78,7 @@ def plot_figure(df_all, title=None):
     fig.set_size_inches(9, 9)
     #fig.set_tight_layout(True)
     fig.set_constrained_layout(True)
-    fig.subplots_adjust(hspace=0.3)
+    #fig.subplots_adjust(hspace=0.3)
     ax = g.ax_joint
 
     #fig, ax = plt.subplots(1, 1, figsize=(9.2, 6.5))
@@ -165,6 +167,19 @@ def plot_figure(df_all, title=None):
     ax.set_xlabel(x_axis_label, size=15, labelpad=15)
     ax.set_ylabel(y_axis_label, size=15, labelpad=15)
 
+    major_tick_positions = [0, 10, 100, 1000]
+    ax.set_xticks(major_tick_positions)
+    ax.set_yticks(major_tick_positions)
+
+    # set tick locations
+    ax.grid(which='major', axis='both', linestyle='dashed', linewidth=0.5, color='#555555', alpha=0.5)
+    ax.grid(which='minor', axis='both', linestyle='--', linewidth=0.2, color='#777777', alpha=0.5)
+    minor_tick_positions = list(range(0, MIN_COVERAGE_THRESHOLD+1)) + list(range(10, 100, 10)) + list(range(100, 1000, 100))
+    ax.xaxis.set_major_locator(plt.FixedLocator(major_tick_positions))
+    ax.yaxis.set_major_locator(plt.FixedLocator(major_tick_positions))
+    ax.xaxis.set_minor_locator(plt.FixedLocator(minor_tick_positions))
+    ax.yaxis.set_minor_locator(plt.FixedLocator(minor_tick_positions))
+
     # decision boundary line(s)
     decision_boundary_line_color = "red"
     ax.plot(
@@ -172,6 +187,14 @@ def plot_figure(df_all, title=None):
         decision_boundary_y,
         '-',
         label='Decision Boundary',
+        c=decision_boundary_line_color)
+
+    ax.plot(
+        decision_boundary_x,
+        decision_boundary2_y,
+        '--',
+        label=f'Decision boundary\nwith confidence > {PHRED_SCALE_CONFIDENCE_THRESHOLD}',
+        linewidth=0.7,
         c=decision_boundary_line_color)
 
     # minimum coverage threshold line
@@ -182,7 +205,6 @@ def plot_figure(df_all, title=None):
         linewidth=0.8,
         color='black',
         label="Minimum Read\nCoverage Threshold")
-
 
     # legend
     ax.legend(
@@ -208,7 +230,7 @@ def main():
                    "indicates that the sample is unaffected")
     p.add_argument("--title", help="Plot title")
     p.add_argument("-o", "--output-prefix", help="Filename prefix for the output plot image file.")
-    p.add_argument("-f", "--output-format", default="png", choices=["png", "pdf", "svg"], help="Output image format")
+    p.add_argument("-f", "--format", action="append", required=True, choices=["png", "pdf", "svg"], help="Output image format")
     p.add_argument("sma_finder_combined_results_path", help="Path of tsv file containing the combined results of "
                    "SMA Finder for all samples")
 
@@ -274,9 +296,10 @@ def main():
     if not args.output_prefix:
         args.output_prefix = re.sub(".tsv(.gz)?$", "", os.path.basename(args.sma_finder_combined_results_path))
 
-    ouput_path = f"{args.output_prefix}.SMN1_vs_SMN2_plot.{args.output_format}"
-    plt.savefig(ouput_path)
-    print(f"Saved plot to {ouput_path}")
+    for output_format in args.format:
+        ouput_path = f"{args.output_prefix}.SMN1_vs_SMN2_plot.{output_format}"
+        plt.savefig(ouput_path)
+        print(f"Saved plot to {ouput_path}")
 
     plt.close()
 
