@@ -32,12 +32,12 @@ RUN apt update && apt-get install -y --no-install-recommends \
     zlib1g-dev
 
 # install htslib
-ENV SAMTOOLS_VERSION="1.15.1"
+ENV SAMTOOLS_VERSION="1.19"
 RUN wget https://github.com/samtools/htslib/releases/download/${SAMTOOLS_VERSION}/htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& tar xjf htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm htslib-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& cd htslib-${SAMTOOLS_VERSION} \
-	&& ./configure \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
 	&& make clean
@@ -47,13 +47,13 @@ RUN wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSI
 	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
 	&& cd samtools-${SAMTOOLS_VERSION} \
-	&& ./configure \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
 	&& make clean
 
 # install gcloud
-ENV GCLOUD_SDK_VERISON="441.0.0"
+ENV GCLOUD_SDK_VERISON="459.0.0"
 RUN wget https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
@@ -70,6 +70,7 @@ RUN wget https://github.com/broadinstitute/gatk/releases/download/${GATK_VERSION
 
 # install sma_finder.py
 COPY requirements.txt /
+ENV HTSLIB_CONFIGURE_OPTIONS="--enable-gcs"
 RUN python3 -m pip install --upgrade -r requirements.txt
 
 COPY sma_finder.py /
