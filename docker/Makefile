@@ -1,5 +1,5 @@
 TAG1 = weisburd/sma_finder:latest
-TAG2 = weisburd/sma_finder:v1.4.1
+TAG2 = weisburd/sma_finder:v1.4.2
 
 all: build push update_sha
 

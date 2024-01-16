@@ -228,7 +228,7 @@ def main():
                    "the affected status of each sample")
     p.add_argument("--not-affected-label", default="Not Affected", help="Value in the affected status column that "
                    "indicates that the sample is unaffected")
-    p.add_argument("--title", help="Plot title")
+    p.add_argument("-t", "--title", help="Plot title")
     p.add_argument("-o", "--output-prefix", help="Filename prefix for the output plot image file.")
     p.add_argument("-f", "--format", action="append", required=True, choices=["png", "pdf", "svg"], help="Output image format")
     p.add_argument("sma_finder_combined_results_path", help="Path of tsv file containing the combined results of "
