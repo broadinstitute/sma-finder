@@ -142,8 +142,8 @@ done
 ---
 ### Plotting combined results
 
-A scatter plot similar to those in the top right section of th poster showing read counts from multiple samples can be generated using the `plot_SMN1_SMN2_scatter` command:
+A scatter plot similar to those in the top right section of the poster showing read counts from multiple samples can be generated using the `plot_SMN1_SMN2_scatter` command:
 
 ```
-python3 -u plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_filename}
+python3 plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_filename}
 ```
