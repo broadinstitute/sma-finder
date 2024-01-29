@@ -7,10 +7,10 @@ import re
 import subprocess
 import sys
 
-from sma_finder import SMN_C840_POSITION_1BASED
+from sma_finder import SMN_C840_POSITION_1BASED, OUTPUT_COLUMNS
 from step_pipeline import pipeline, Backend, Localize, Delocalize, files_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:6063f6a19df571802d22d3161be2eaab4ab950841862a696dae24a7f9abf056e"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:41a3bc624a65d1625f098b7041ce6be310a7c002375ea43da3bc7e99cc9b00ed"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -40,6 +40,8 @@ def parse_args(batch_pipeline):
         help="Cloud storage output directory where to copy individual sma_finder output .tsv file(s).")
     group.add_argument("-s", "--sample-id", action="append",
         help="If specified, only this sample id will be processed from the input table (useful for testing).")
+    group.add_argument("-k", "--keyword", action="append",
+        help="If specified, only sample ids that contain this keyword will be processed from the input table.")
     group.add_argument("-n", "--num-samples-to-process", type=int,
         help="If specified, only this many samples will be processed from the input table (useful for testing).")
     group.add_argument("--offset", type=int, help="If specified, will skip his many initial rows from the table.")
@@ -56,7 +58,7 @@ def parse_args(batch_pipeline):
         "Job. This is useful for reducing overhead involved in initializing each Job and localizing reference data.")
     group.add_argument("--allow-sample-failures", action="store_true",
         help="When processing more than 1 sample per job, continue processing subsequent samples within a given job "
-             "even if one or more samples fail.")
+             "even if one ]or more samples fail.")
 
     group.add_argument("sample_table",
         help="Path of tab-delimited table containing sample ids along with their BAM or CRAM file paths "
@@ -220,7 +222,6 @@ def main():
     # compute output tsv
     df.loc[:, "output_tsv"] = df.apply(
         output_tsv_path_func(args.output_dir, args.cram_or_bam_path_column, args.sample_id_column), axis=1)
-
     df_copy = df.copy()
 
     # check for existing outputs
@@ -237,6 +238,9 @@ def main():
     analysis_id = ", ".join(sorted(df[args.sample_id_column]))
     analysis_id = hashlib.md5(analysis_id.encode('UTF-8')).hexdigest().upper()
     analysis_id = analysis_id[:10]  # shorten
+
+    if args.keyword:
+        df = df[df[args.sample_id_column].str.contains("|".join(args.keyword))]
 
     if args.genome_version_column in df.columns:
         df = df.sort_values(args.genome_version_column)
@@ -286,7 +290,7 @@ def main():
             row_sample_id = row[args.sample_id_column]
             row_cram_or_bam_path = row[args.cram_or_bam_path_column]
             row_crai_or_bai_path = row[args.crai_or_bai_path_column]
-            row_output_tsv_path = row['output_tsv']
+            row_output_tsv_path = row["output_tsv"]
 
             # decide which genome version(s) to use for this sample
             row_genome_version = row.get(args.genome_version_column)
@@ -396,7 +400,9 @@ def main():
         s["path"] for s in bp.precache_file_paths(os.path.join(args.output_dir, "**", f"{OUTPUT_FILENAME_PREFIX}*tsv"))
     }
     print(f"Found {len(existing_output_tsv_paths):,d} output tsv files in {args.output_dir}")
-
+    if len(existing_output_tsv_paths) == 0:
+        print("No output tsv files found. Exiting...")
+        sys.exit(1)
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
     bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")    
@@ -422,12 +428,14 @@ def main():
     s2.switch_gcloud_auth_to_user_account()    
     s2.command("set -euxo pipefail")
 
-    combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
-    for i, input_tsv_path in enumerate(set(df["output_tsv"])):
-        input_tsv = s2.input(input_tsv_path)
-        if i == 0:
-            s2.command(f"head -n 1 {input_tsv} > {combined_output_tsv_filename}")
-        s2.command(f"tail -n +2 {input_tsv} >> {combined_output_tsv_filename}")
+    combined_output_tsv_filename = f"/io/combined_results/combined_results.{len(df)}_samples.{analysis_id}.tsv"
+
+    input_tsv0 = s2.input(df.iloc[0]["output_tsv"])
+    s2.command("mkdir -p /io/combined_results")
+    s2.command("cd /io/combined_results")
+    s2.command(f"head -n 1 {input_tsv0} > {combined_output_tsv_filename}")
+    s2.command(f"gsutil -m cp -r {os.path.join(args.output_dir, 'sma_finder_tsvs')} .")
+    s2.command(f"find sma_finder_tsvs -name \"{OUTPUT_FILENAME_PREFIX}*.tsv\" | xargs cat | grep -v {OUTPUT_COLUMNS[-1]} >> {combined_output_tsv_filename}")
 
     s2.command(f"gzip {combined_output_tsv_filename}")
     combined_output_tsv_filename = f"{combined_output_tsv_filename}.gz"
