@@ -46,8 +46,19 @@ at the c.840 positions in SMN1 and SMN2:
 SMN_C840_POSITION_1BASED = {
     "37": ("5", 70247773, "C", 69372353, "T"),
     "38": ("chr5", 70951946, "C", 70076526, "T"),
+    #"38": ("chr5_KI270897v1_alt", 500378, "C", 301867, "T"),
+    #"38": ("chr5_GL339449v2_alt", 458845, "G", 458845, "T"),
     "t2t":  ("5", 71408734, "C",  70810812, "T"),
 }
+
+# NOTE: in GRCh38, there are alternative contigs with SMN1 and SMN2 sequences:
+#   SMN1 @ chr5_KI270897v1_alt:473491-501447  with the c.840 C base @ chr5_KI270897v1_alt:500378
+#   SMN2 @ chr5_KI270897v1_alt:274951-303848  with the c.840 T base @ chr5_KI270897v1_alt:301867
+#   reverse complement of SMN1 @ chr5_GL339449v2_alt:456849-485731  with the c.840 G base @ chr5_GL339449v2_alt:458845
+# Since, by default, bwa mem performs ALT-aware alignment, we don't expect to see primary alignments at these alternative
+# contig sequences (see https://github.com/lh3/bwa/blob/master/README-alt.md#step-1-bwa-mem-mapping). Checking ~20,000
+# exomes and ~5,000 genomes from cohorts @ the Broad Institute Center for Mendelian Genomics confirmed this.
+# In all samples, there were 0 reads that aligned to the c.840 positions in the alternative contig sequences of SMN.
 
 """MAX_TOTAL_SMN_COPIES represents the largest number of total SMN copies we'd expect to see when an individual has only 
 1 copy of SMN1.    
