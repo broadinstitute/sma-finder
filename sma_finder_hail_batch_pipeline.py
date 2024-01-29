@@ -10,7 +10,7 @@ import sys
 from sma_finder import SMN_C840_POSITION_1BASED, OUTPUT_COLUMNS
 from step_pipeline import pipeline, Backend, Localize, Delocalize, files_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:41a3bc624a65d1625f098b7041ce6be310a7c002375ea43da3bc7e99cc9b00ed"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:af6b461d7288a9aa1907300376f63b67aa5e76b394c988bf4e8cd67f5f0ff730"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -58,7 +58,7 @@ def parse_args(batch_pipeline):
         "Job. This is useful for reducing overhead involved in initializing each Job and localizing reference data.")
     group.add_argument("--allow-sample-failures", action="store_true",
         help="When processing more than 1 sample per job, continue processing subsequent samples within a given job "
-             "even if one ]or more samples fail.")
+             "even if one or more samples fail.")
 
     group.add_argument("sample_table",
         help="Path of tab-delimited table containing sample ids along with their BAM or CRAM file paths "
@@ -196,7 +196,7 @@ def output_tsv_path_func(output_dir, cram_path_column, sample_id_column):
 def main():
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step2", action="store_true")
-    bp.get_config_arg_parser().add_argument("--force-step2", action="store_true")    
+    bp.get_config_arg_parser().add_argument("--force-step2", action="store_true")
 
     df, args = parse_sample_table(bp)
 
@@ -405,14 +405,14 @@ def main():
         sys.exit(1)
     bp = pipeline(backend=Backend.HAIL_BATCH_SERVICE)
     bp.get_config_arg_parser().add_argument("--skip-step1", action="store_true")
-    bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")    
+    bp.get_config_arg_parser().add_argument("--force-step1", action="store_true")
     args2 = parse_args(bp)
 
     df = df_copy
     df = df[df["output_tsv"].isin(existing_output_tsv_paths)]
 
     bp.set_name(f"sma_finder: combine {len(df)} samples")
-    
+
     # step2: combine tables from step1 into a single table
     s2 = bp.new_step(
         f"Combine {len(df):,d} tables",
@@ -425,22 +425,23 @@ def main():
         step_number=2,
         arg_suffix="step2",
     )
-    s2.switch_gcloud_auth_to_user_account()    
+    s2.switch_gcloud_auth_to_user_account()
     s2.command("set -euxo pipefail")
 
-    combined_output_tsv_filename = f"/io/combined_results/combined_results.{len(df)}_samples.{analysis_id}.tsv"
+    local_output_dir = "/io/combined_results/"
+    combined_output_tsv_filename = f"combined_results.{len(df)}_samples.{analysis_id}.tsv"
 
     input_tsv0 = s2.input(df.iloc[0]["output_tsv"])
-    s2.command("mkdir -p /io/combined_results")
-    s2.command("cd /io/combined_results")
-    s2.command(f"head -n 1 {input_tsv0} > {combined_output_tsv_filename}")
+    s2.command(f"mkdir -p {local_output_dir}")
+    s2.command(f"cd {local_output_dir}")
+    s2.command(f"head -n 1 {input_tsv0} > {os.path.join(local_output_dir, combined_output_tsv_filename)}")
     s2.command(f"gsutil -m cp -r {os.path.join(args.output_dir, 'sma_finder_tsvs')} .")
-    s2.command(f"find sma_finder_tsvs -name \"{OUTPUT_FILENAME_PREFIX}*.tsv\" | xargs cat | grep -v {OUTPUT_COLUMNS[-1]} >> {combined_output_tsv_filename}")
+    s2.command(f"find sma_finder_tsvs -name \"{OUTPUT_FILENAME_PREFIX}*.tsv\" | xargs cat | grep -v {OUTPUT_COLUMNS[-1]} >> {os.path.join(local_output_dir, combined_output_tsv_filename)}")
 
-    s2.command(f"gzip {combined_output_tsv_filename}")
+    s2.command(f"gzip {os.path.join(local_output_dir, combined_output_tsv_filename)}")
     combined_output_tsv_filename = f"{combined_output_tsv_filename}.gz"
 
-    s2.output(combined_output_tsv_filename, delocalize_by=Delocalize.COPY)
+    s2.output(os.path.join(local_output_dir, combined_output_tsv_filename), delocalize_by=Delocalize.COPY)
 
     bp.run()
 
