@@ -48,7 +48,7 @@ SMN_C840_POSITION_1BASED = {
     "38": ("chr5", 70951946, "C", 70076526, "T"),
     #"38": ("chr5_KI270897v1_alt", 500378, "C", 301867, "T"),
     #"38": ("chr5_GL339449v2_alt", 458845, "G", 458845, "T"),
-    "t2t":  ("5", 71408734, "C",  70810812, "T"),
+    "t2t":  ("chr5", 71408734, "C",  70810812, "T"),
 }
 
 # NOTE: in GRCh38, there are alternative contigs with SMN1 and SMN2 sequences:

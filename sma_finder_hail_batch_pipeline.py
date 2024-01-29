@@ -10,7 +10,7 @@ import sys
 from sma_finder import SMN_C840_POSITION_1BASED, OUTPUT_COLUMNS
 from step_pipeline import pipeline, Backend, Localize, Delocalize, files_exist
 
-DOCKER_IMAGE = "weisburd/sma_finder@sha256:af6b461d7288a9aa1907300376f63b67aa5e76b394c988bf4e8cd67f5f0ff730"
+DOCKER_IMAGE = "weisburd/sma_finder@sha256:7ec68777a15b153dfad8c147482e57e2e3224b101be89e3e6dcecc3bc626c3bc"
 
 REFERENCE_FASTA_PATH = {
     "37": "gs://gcp-public-data--broad-references/hg19/v0/Homo_sapiens_assembly19.fasta",
@@ -271,15 +271,14 @@ def main():
             s1.name += ", ".join(df_current_batch[args.sample_id_column])
 
         # decide how to localize inputs
+        s1.switch_gcloud_auth_to_user_account()
         if args.localize_via == "cloudfuse":
             localize_read_data_by = Localize.HAIL_BATCH_CLOUDFUSE
         elif args.localize_via == "copy":
             s1.storage("75Gi")
             s1.command("cd /io/")
-            s1.switch_gcloud_auth_to_user_account()
             localize_read_data_by = Localize.GSUTIL_COPY
         elif args.localize_via == "gatk-print-reads":
-            s1.switch_gcloud_auth_to_user_account(debug=True)
             localize_read_data_by = None
         else:
             raise ValueError(f"Unexpected localize_via arg: {args.localize_via}")
