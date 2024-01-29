@@ -7,7 +7,9 @@ c.840 position in *SMN1* and *SMN2*, and then reports whether the input sample(s
 Running this tool on 13 positive controls and 10,434 negative controls showed 100% sensitivity and specificity (details below). 
 
 *Limitations:*  
-SMA Finder doesn't report SMA carrier status or *SMN2* copy number.  Also, it does not detect the ~5% of cases caused by unusual *SMN1* loss-of-function mutations that do not involve the c.840 position. 
+- does not report SMA carrier status or *SMN2* copy number.  
+- does not detect the ~5% of cases caused by *SMN1* loss-of-function mutations that do not involve the c.840 position
+- requires at least 14 reads to overlap the c.840 position in *SMN1* plus *SMN2* in order to make a call
 
 
 ### Install
@@ -122,3 +124,23 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
 This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
 
 <img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
+
+---
+### Combining results from multiple samples
+
+After running multiple SMA Finder instances, it is possible to combine the output tables into
+a single table using the following shell command:
+
+```
+combined_table_filename=combined_results.tsv
+head -n 1 $(ls *.tsv | head -n 1) > ${combined_table_filename}   # get table header from the 1st table 
+for i in *.tsv; do
+    tail -n +2 $i >> ${combined_table_filename}    # concatenate all tables
+done
+```
+
+---
+### Plotting combined results
+
+A scatter plot showing read counts from many samples can be generated using the `plot_SMN1_SMN2_scatter` command:
+
