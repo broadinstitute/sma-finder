@@ -22,7 +22,7 @@ args = p.parse_args()
 if not os.path.isfile(args.results_table):
     p.error(f"File not found: {args.results_table}")
 
-df = pd.read_table(args.results_table)
+df = pd.read_table(args.results_table, dtype=str)
 df_standard_columns = set(df.columns)
 print(f"Parsed {len(df):,d} rows from {args.results_table}")
 
