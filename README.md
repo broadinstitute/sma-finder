@@ -1,10 +1,10 @@
 ## SMA Finder  
 
-SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) using exome, genome, or targeted sequencing data.  
+SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) based on Illumina exome, genome, or targeted sequencing data.  
 It takes a reference sequence (FASTA) and 1 or more alignment files (CRAM or BAM) as input, evaluates reads at the 
-c.840 position of *SMN1* and *SMN2* to detect the most common molecular causes of SMA. 
+c.840 position of *SMN1* and *SMN2* to detect the most common molecular causes of SMA, and reports whether the individual has complete loss of SMN1. 
 
-It has been confirmed to work on short read data aligned to GRCh37, GRCh38, or T2T using the BWA aligner.
+It has been tested and confirmed to be highly accurate on short read data aligned to GRCh37, GRCh38, or T2T using the BWA aligner.
 
 *Limitations:*  
 - does not report SMA carrier status or *SMN1/SMN2* copy numbers  
