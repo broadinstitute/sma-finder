@@ -1,6 +1,6 @@
 ## SMA Finder  
 
-SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) based on Illumina exome, genome, or targeted sequencing data.  
+SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) based on Illumina exome, genome, or targeted sequencing data. 
 It takes a reference sequence (FASTA) and 1 or more alignment files (CRAM or BAM) as input, evaluates reads at the 
 c.840 position of *SMN1* and *SMN2* to detect the most common molecular causes of SMA, and then reports whether it found a complete loss of *SMN1*. 
 
@@ -45,8 +45,6 @@ Wrote 1 rows to sample1.sma_finder_results.tsv
 ```
 
 ### Usage
-
-Usage help text:
 
 ```
 sma_finder --help
