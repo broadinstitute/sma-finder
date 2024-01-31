@@ -129,8 +129,8 @@ This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.
 ---
 ### Combining results from multiple samples
 
-After running multiple SMA Finder instances, it is possible to combine the output tables into
-a single table using the following shell command:
+After running SMA Finder on many samples, it often useful to combine the per-sample output tables into
+a single table. One way to do this is with the following shell command:
 
 ```
 combined_table_filename=combined_results.tsv
@@ -143,8 +143,9 @@ done
 ---
 ### Plotting combined results
 
-A scatter plot similar to those in the top right section of the poster showing read counts from multiple samples can be generated using the `plot_SMN1_SMN2_scatter` command:
+A scatter plot summarizing read counts from many samples can be generated using the `plot_SMN1_SMN2_scatter` command:
 
 ```
 python3 plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_filename}
 ```
+This is the script used to gerenate the plots in the top right corner of the poster above.
