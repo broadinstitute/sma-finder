@@ -124,13 +124,14 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
   
 ### Combining results from multiple samples
 
-After running SMA Finder on many samples, it often useful to combine the per-sample output tables into
+After running SMA Finder on many samples, it's often useful to combine the per-sample output tables into
 a single table. One way to do this is with the following shell command:
 
 ```
+cd <directory with multiple SMA Finder output tsvs>
 combined_table_filename=combined_results.tsv
-head -n 1 $(ls *.tsv | head -n 1) > ${combined_table_filename}   # get table header from the 1st table 
-for i in *.tsv; do
+head -n 1 $(ls *.sma_finder_results.tsv | head -n 1) > ${combined_table_filename}   # get table header from the 1st table 
+for i in *.sma_finder_results.tsv; do
     tail -n +2 $i >> ${combined_table_filename}    # concatenate all tables
 done
 ```
@@ -143,7 +144,7 @@ A scatter plot summarizing read counts from many samples can be generated using 
 python3 plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_filename}
 ```
 
-It generates plots like this one which is based on a neuromuscular cohort with 16,626 exomes:
+It generates plots like this one which is based on 16,626 exomes that include neuromuscular disease cohorts:
 
 <img width="799" alt="image" src="https://github.com/broadinstitute/sma-finder/assets/6240170/d097a231-9b66-445b-b53c-84abdb9887d0">
 
