@@ -149,6 +149,6 @@ A scatter plot summarizing read counts from many samples can be generated using 
 python3 plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_filename}
 ```
 
-It generates plots like this one which is based on a neuromuscular cohort with 16,626 exome:
+It generates plots like this one which is based on a neuromuscular cohort with 16,626 exomes:
 
 <img width="799" alt="image" src="https://github.com/broadinstitute/sma-finder/assets/6240170/d097a231-9b66-445b-b53c-84abdb9887d0">
