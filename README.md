@@ -31,7 +31,7 @@ Input args:
     --hg38-reference-fasta: /ref/hg38.fa
     --output-tsv: sample1.sma_finder_results.tsv
     CRAMS or BAMS: sample1.cram
-----
+---
 Output row #1:
         filename_prefix                     sample1
         file_type                           cram
@@ -77,7 +77,6 @@ optional arguments:
   -v, --verbose         Whether to print extra details during the run
 ```
 
----
 
 ### Output
 
@@ -118,15 +117,11 @@ The output .tsv contains one row per input CRAM or BAM file and has the followin
         <td>total number of reads overlapping the c.840 position in SMN1 plus SMN2</td>  
     </tr>
 </table>
+<br />  
 
 ---
-### Details
 
-This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
-
-<img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
-
----
+  
 ### Combining results from multiple samples
 
 After running SMA Finder on many samples, it often useful to combine the per-sample output tables into
@@ -140,7 +135,6 @@ for i in *.tsv; do
 done
 ```
 
----
 ### Plotting combined results
 
 A scatter plot summarizing read counts from many samples can be generated using the `plot_SMN1_SMN2_scatter` command:
@@ -152,3 +146,11 @@ python3 plot_SMN1_SMN2_scatter.py --format svg --format png ${combined_table_fil
 It generates plots like this one which is based on a neuromuscular cohort with 16,626 exomes:
 
 <img width="799" alt="image" src="https://github.com/broadinstitute/sma-finder/assets/6240170/d097a231-9b66-445b-b53c-84abdb9887d0">
+
+---
+### Details
+
+This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
+
+<img src="https://github.com/broadinstitute/sma_finder/raw/main/docs/SMA_poster_SVAR22.png" />
+
