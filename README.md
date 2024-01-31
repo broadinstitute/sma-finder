@@ -10,7 +10,7 @@ It has been tested and confirmed to be highly accurate on short read data aligne
 - does not report SMA carrier status or *SMN1/SMN2* copy numbers  
 - does not detect the ~5% of cases caused by *SMN1* loss-of-function mutations that do not involve the c.840 position  
 - requires at least 14 reads to overlap the c.840 position in *SMN1* plus *SMN2* in order to make a call  
-- was developed and tested on Illumina short read sequencing data generated from whole blood DNA and aligned using the BWA aligner. Performance on data from other sequencing technologies, sample types, and alignment pipelines is unknown. 
+- was developed and tested on Illumina short read sequencing data generated using DNA extrated from whole blood and aligned using the BWA aligner. Performance on data from other sequencing technologies, sample types, and alignment pipelines is unknown. 
 
 
 ### Install
