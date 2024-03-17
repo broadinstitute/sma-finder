@@ -10,6 +10,11 @@ It has been tested and confirmed to be highly accurate on samples aligned to GRC
 - requires at least 14 reads to overlap the c.840 position in *SMN1* plus *SMN2* in order to make a call  
 - was developed and tested on Illumina short read sequencing data generated using DNA extrated from whole blood and aligned using the BWA aligner. Performance on data from other sequencing technologies, sample types, and alignment pipelines is unknown. 
 
+### Publication
+
+For more information about SMA Finder, see:
+
+*Weisburd B, Sharma R, Pata V, et al. Detecting missed diagnoses of spinal muscular atrophy in genome, exome, and panel sequencing datasets. Preprint. medRxiv. 2024;2024.02.11.24302646. Published 2024 Feb 27. [doi:10.1101/2024.02.11.24302646](https://pubmed.ncbi.nlm.nih.gov/38405995/)*
 
 ### Install
 
