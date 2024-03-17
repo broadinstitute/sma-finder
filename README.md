@@ -18,8 +18,9 @@ For more information about SMA Finder, see:
 
 ### Install
 
+To install the latest version of SMA Finder, run:
 ```
-python3 -m pip install sma-finder
+python3 -m pip install -U sma-finder
 ```
 
 ### Example
