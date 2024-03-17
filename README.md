@@ -151,7 +151,7 @@ It generates plots like this one which is based on 16,626 exomes that include ne
 <img width="799" alt="image" src="https://github.com/broadinstitute/sma-finder/assets/6240170/d097a231-9b66-445b-b53c-84abdb9887d0">
 
 ---
-### Poster for SVAR22
+### Poster from SVAR22
 
 This poster on SMA Finder was presented at the [SVAR22](https://www.grahamerwin.org/svar-conference) conference:
 
