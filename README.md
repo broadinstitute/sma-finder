@@ -14,7 +14,7 @@ It has been tested and confirmed to be highly accurate on samples aligned to GRC
 
 For more information about SMA Finder, see:
 
-*Weisburd B, Sharma R, Pata V, et al. Detecting missed diagnoses of spinal muscular atrophy in genome, exome, and panel sequencing datasets. Preprint. medRxiv. 2024;2024.02.11.24302646. Published 2024 Feb 27. [doi:10.1101/2024.02.11.24302646](https://pubmed.ncbi.nlm.nih.gov/38405995/)*
+*Weisburd B, Sharma R, Pata V, et al. Detecting missed diagnoses of spinal muscular atrophy in genome, exome, and panel sequencing datasets. Preprint. medRxiv. 2024;2024.02.11.24302646. Published 2024 Feb 27. [doi:10.1101/2024.02.11.24302646](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10889006/)*
 
 ### Install
 
