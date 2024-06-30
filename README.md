@@ -2,7 +2,7 @@
 
 SMA Finder is a tool for diagnosing spinal muscular atrophy (SMA) from short read exome, genome, or panel sequencing data. It takes a reference sequence (FASTA) and 1 or more alignment files (CRAM or BAM) as input, evaluates reads at the c.840 position of *SMN1* and *SMN2* to detect the most common molecular causes of SMA, and then reports whether the data indicates a complete loss of functional *SMN1*, and therefore a diagnosis of SMA. 
 
-SMA Finder has been tested on over 30,000 exome, genome, and panel sequencing samples from CMG/GREGoR rare disease cohorts as well as on 200,000 exomes and genomes from the UK Biobank (UKBB). In these tests, SMA Finder's false positive rate was less than 1 in 200,000, its true positive rate was 28/28 (100%), and its positive predictive value (PPV) was 97%. 
+SMA Finder has been tested on over 30,000 exome, genome, and panel sequencing samples from CMG/GREGoR rare disease cohorts as well as 200,000 exomes and genomes from the UK Biobank (UKBB). In these tests, SMA Finder's false positive rate was less than 1 in 200,000, its true positive rate was 28/28 (100%), and its positive predictive value (PPV) was 97%. 
 
 *Limitations:*  
 - does not report SMA carrier status or *SMN1/SMN2* copy numbers  
