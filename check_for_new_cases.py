@@ -105,26 +105,11 @@ df = df.drop_duplicates()
 # print stats on new cases
 if len(df) > 0:
     print(f"\nNew cases:")
-    extra_columns_to_print = set(df.columns) - df_standard_columns
-    extra_columns_to_print = {c for c in extra_columns_to_print if "path" not in c}
-    extra_columns_to_print = list(sorted(extra_columns_to_print))
-
-    column_widths = {c: len(c) for c in extra_columns_to_print}
-    for i, (_, row) in enumerate(df.iterrows()):
-        for c in extra_columns_to_print:
-            column_widths[c] = max(column_widths.get(c, 0), len(str(row.get(c, ""))))
-    header_line = f"{'#':<2s}  {args.metadata_sample_id_column:20s}  {'genome_version':20s}  "
-    header_line += f"read support" + " "*15
-    for c in extra_columns_to_print:
-        header_line += f"{c:>{column_widths[c] + 5}s}"
-
-    print(header_line)
-    for i, (_, row) in enumerate(df.iterrows()):
-        print_line = f"#{i+1:<2d}  {row[args.metadata_sample_id_column]:20s}  {row['genome_version']:20s}  "
-        print_line += f"{int(row['c840_reads_with_smn1_base_C']):5,d} out of {int(row['c840_total_reads']):5,d} reads"
-        row_dict = row.to_dict()
-        for c in extra_columns_to_print:
-            print_line += f" {str(row_dict.get(c, '')):>{column_widths[c] + 5}s}"
-        print(print_line)
+    for i in range(len(df)):
+        print("-"*100)
+        for k, v in df.iloc[i].to_dict().items():
+            if not pd.isna(v):
+                print(f"{k:>50s}: {v}")
+    print("="*100)
 else:
     print("No new cases")
