@@ -19,7 +19,7 @@ For more information about SMA Finder, see:
 
 Citing Articles:  
 
-*Lopez‐Lopez, D., Loucera, C., Carmona, R., Aquino, V., Salgado, J., Pasalodos, S., Miranda, M., Alonso, Á., & Dopazo, J. (2020). SMN1 copy‐number and sequence variant analysis from next‐generation sequencing data. Human Mutation, 41(12), 2073–2077. [doi:10.1002/humu.24120](https://onlinelibrary.wiley.com/doi/full/10.1002/humu.24120)*
+*Khojakulov, Z., Şahin, A., Palvadeau, R. J., Arslan, E. A., Topaloğlu, P., Yapıcı, Z., Bekircan-Kurt, C. E., & Başak, A. N. (2026). <em>SMN</em> Profiling in a Turkish Cohort: NGS-Based Tools Uplift Diagnostic Precision and Carrier Detection in Spinal Muscular Atrophy. Preprints.org. [doi:10.20944/preprints202605.1147.v1](https://www.preprints.org/manuscript/202605.1147)*
 
 
 ### Install
