@@ -16,6 +16,12 @@ For more information about SMA Finder, see:
 
 *Weisburd B, Sharma R, Pata V, et al. Detecting missed diagnoses of spinal muscular atrophy in genome, exome, and panel sequencing datasets. Preprint. medRxiv. 2024;2024.02.11.24302646. Published 2024 Feb 27. [doi:10.1101/2024.02.11.24302646](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10889006/)*
 
+
+Citing Articles:  
+
+*Lopez‐Lopez, D., Loucera, C., Carmona, R., Aquino, V., Salgado, J., Pasalodos, S., Miranda, M., Alonso, Á., & Dopazo, J. (2020). SMN1 copy‐number and sequence variant analysis from next‐generation sequencing data. Human Mutation, 41(12), 2073–2077. [doi:10.1002/humu.24120](https://onlinelibrary.wiley.com/doi/full/10.1002/humu.24120)*
+
+
 ### Install
 
 To install the latest version of SMA Finder, run:
