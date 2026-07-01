@@ -190,6 +190,27 @@ def count_nucleotides_at_position(alignment_file, chrom, pos_1based):
     return nucleotide_counts
 
 
+def resolve_chrom(alignment_file, chrom):
+    """Return the contig name as it appears in the alignment file, tolerating 'chr' prefix differences (eg. UCSC-style
+    hg19 alignments that use 'chr5' rather than the Broad b37 convention of '5').
+
+    Args:
+        alignment_file (pysam.AlignmentFile): The pysam AlignmentFile object representing the input BAM or CRAM file.
+        chrom (str): Chromosome name to look up.
+
+    Return:
+        str: The contig name as found in the alignment file's references.
+    """
+    if chrom in alignment_file.references:
+        return chrom
+
+    alt_chrom = chrom[3:] if chrom.startswith("chr") else f"chr{chrom}"
+    if alt_chrom in alignment_file.references:
+        return alt_chrom
+
+    raise ValueError(f"contig {chrom} (or {alt_chrom}) not found among the alignment file's reference contigs")
+
+
 def get_filename_prefix_and_file_type(cram_or_bam_path):
     """Returns the filename prefix and file type suffix.
 
@@ -310,8 +331,9 @@ def main():
                 with pysam.AlignmentFile(
                         cram_or_bam_path, 'rc', reference_filename=reference_fasta_path) as alignment_file:
                     set_sample_id(alignment_file, output_row)
-                    smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn1)
-                    smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, chrom, c840_position_in_smn2)
+                    resolved_chrom = resolve_chrom(alignment_file, chrom)
+                    smn1_nucleotide_counts = count_nucleotides_at_position(alignment_file, resolved_chrom, c840_position_in_smn1)
+                    smn2_nucleotide_counts = count_nucleotides_at_position(alignment_file, resolved_chrom, c840_position_in_smn2)
             except ValueError as e:
                 print(f"ERROR: unable to get read counts from {cram_or_bam_path} for {genome_version_label}: {e}. "
                       f"Skipping...")
