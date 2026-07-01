@@ -147,6 +147,11 @@ def parse_sample_table(batch_pipeline):
               f"because they had the same cram or bam path as previous rows (ie. were duplicates)")
     df = df.sort_values(args.sample_id_column)
 
+    if args.genome_version:
+        if not args.genome_version_column:
+            args.genome_version_column = "genome_version"
+        df[args.genome_version_column] = args.genome_version
+        
     # validate genome_version_column arg if specified
     if args.genome_version_column:
         if args.genome_version_column in df.columns:
@@ -164,7 +169,7 @@ def parse_sample_table(batch_pipeline):
                       f"The only allowed values are: " + ", ".join(sorted(VALID_GENOME_VERSIONS)) + ". The unexpected "
                       "values will be cleared and those samples will be tested for both hg37 and hg38 coordinates")
                 #df.loc[~df[args.genome_version_column].isin(VALID_GENOME_VERSIONS) : args.genome_version_column] = ""
-        else:
+        else:   
             print(f"WARNING: {args.genome_version_column} column not found in {args.sample_table}. "
                   f"Will test each sample for both hg37 and hg38 coordinates.")
 
@@ -448,7 +453,7 @@ def main():
     os.system(f"gsutil -m cp {os.path.join(args.output_dir, combined_output_tsv_filename)} .")
     result_df = pd.read_table(combined_output_tsv_filename)
     result_df.loc[:, "sample_id_or_filename"] = result_df["sample_id"].fillna(result_df.filename_prefix)
-    result_df = result_df.drop("filename_prefix", axis=1)
+    #result_df = result_df.drop("filename_prefix", axis=1)
 
     #df = df.drop_duplicates(subset=[args.sample_id_column], keep="first")
     if args.genome_version_column in df.columns:
